@@ -63,7 +63,14 @@ export async function getTodaysLogs(): Promise<AttendanceLog[]> {
   const store = db.transaction("attendanceLogs").objectStore("attendanceLogs");
   const allLogs = await store.getAll();
   const today = new Date().toISOString().split("T")[0];
+  console.log("Today's logs:", allLogs);
   return allLogs.filter(log => log.timestamp.startsWith(today));
+}
+
+// Get all logs
+export async function getAllLogs(): Promise<AttendanceLog[]> {
+  const db = await getDB();
+  return db.getAll("attendanceLogs");
 }
 
 // Optional: clear all logs (useful for testing)

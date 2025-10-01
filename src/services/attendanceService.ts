@@ -1,6 +1,7 @@
 import { db } from "./db";
 import type { AttendanceLog } from "../types/attendance";
 import type { Student } from "../types/student";
+import { getAllStudents, getTodaysLogs, getAllLogs } from "./studentService";
 
 // Automatically log attendance by LRN
 export const logAttendance = async (lrn: string) => {
@@ -46,27 +47,13 @@ export const getVisitsPerGrade = async () => {
 };
 
 export async function getTodaysGenderBreakdown() {
-  const today = new Date().toISOString().split("T")[0];
-
-  const students = await db.students.toArray();
-  const logs = await db.attendance.toArray();
-
-  console.log("All attendance logs:", logs);
-
-  const todaysLogs = logs.filter((log) => {
-    const time = log.timeIn instanceof Date ? log.timeIn : new Date(log.timeIn);
-    const timeStr = time.toISOString().slice(0, 10);
-    return timeStr === today;
-  });
-
-  console.log("Filtered today's logs:", todaysLogs);
+  const allStudents = await getAllStudents();
+  const todaysLogs = await getTodaysLogs();
 
   const studentMap = new Map<string, Student>();
-  students.forEach((student) => {
+  allStudents.forEach((student) => {
     studentMap.set(student.lrn, student);
   });
-
-  console.log("Student mapping:", studentMap);
 
   const breakdown: Record<number, { Male: number; Female: number }> = {
     7: { Male: 0, Female: 0 },
@@ -93,4 +80,94 @@ export async function getTodaysGenderBreakdown() {
   console.log("Computed breakdown:", breakdown);
 
   return breakdown;
+}
+
+export async function getTopMonthlyVisitors() {
+  const allStudents = await getAllStudents();
+  const allLogs = await getAllLogs();
+
+  const studentMap = new Map<string, Student>();
+  allStudents.forEach((student) => {
+    studentMap.set(student.lrn, student);
+  });
+
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+
+  // Filter logs for the current month
+  const monthlyLogs = allLogs.filter((log) => {
+    const logDate = new Date(log.timestamp);
+    return (
+      logDate.getMonth() === currentMonth &&
+      logDate.getFullYear() === currentYear
+    );
+  });
+
+  // Count visits for each student
+  const visitorCounts = new Map<string, number>();
+  monthlyLogs.forEach((log) => {
+    const count = visitorCounts.get(log.studentLrn) || 0;
+    visitorCounts.set(log.studentLrn, count + 1);
+  });
+
+  // Sort and get top 3 visitors
+  const topVisitors = Array.from(visitorCounts.entries())
+    .map(([lrn, count]) => {
+      const student = studentMap.get(lrn);
+      return {
+        name: student ? `${student.firstName} ${student.lastName}` : "Unknown",
+        grade: student ? student.grade : "N/A",
+        visits: count,
+      };
+    })
+    .sort((a, b) => b.visits - a.visits)
+    .slice(0, 3);
+
+  return topVisitors;
+}
+
+// Get today's snapshot
+export async function getTodaysSnapshot() {
+  const todaysLogs = await getTodaysLogs();
+  const totalVisitors = todaysLogs.length;
+
+  const uniqueStudentLrns = new Set(todaysLogs.map(log => log.studentLrn));
+  const uniqueStudents = uniqueStudentLrns.size;
+
+  return {
+    totalVisitors,
+    uniqueStudents,
+  };
+}
+
+// Get recent visitors (last 5)
+export async function getRecentVisitors() {
+  const allStudents = await getAllStudents();
+  const todaysLogs = await getTodaysLogs();
+
+  const studentMap = new Map<string, Student>();
+  allStudents.forEach((student) => {
+    studentMap.set(student.lrn, student);
+  });
+
+  // Sort logs by timestamp in descending order and take the last 5
+  const recentLogs = todaysLogs
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, 5);
+
+  const recentVisitors = recentLogs.map((log) => {
+    const student = studentMap.get(log.studentLrn);
+    const time = new Date(log.timestamp).toLocaleTimeString("en-US", {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+    return {
+      name: student ? `${student.firstName} ${student.lastName}` : "Unknown",
+      grade: student ? student.grade : "N/A",
+      time,
+    };
+  });
+
+  return recentVisitors;
 }

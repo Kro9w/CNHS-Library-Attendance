@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import type { DailyStats } from "../services/db";
 import {
   addStudent,
@@ -9,6 +9,9 @@ import type { Student } from "../types/student";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import { db } from "../services/db";
+import "@fontsource/nunito-sans/800.css";
+import "@fontsource/poppins/400.css";
+import "@fontsource/poppins/600.css";
 
 const AdminPage: React.FC = () => {
   const [lrn, setLrn] = useState("");
@@ -19,6 +22,12 @@ const AdminPage: React.FC = () => {
   const [grade, setGrade] = useState("7");
   const [students, setStudents] = useState<Student[]>([]);
   const [dailyStats, setDailyStats] = useState<DailyStats[]>([]);
+
+  // Refs for file inputs to trigger them from styled buttons
+  const importJsonRef = useRef<HTMLInputElement>(null);
+  const importStudentExcelRef = useRef<HTMLInputElement>(null);
+  const importStatsExcelRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     const unsubscribe = subscribeToDailyStats((stats: DailyStats[]) => {
       setDailyStats(stats);
@@ -37,46 +46,41 @@ const AdminPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!lrn || !firstName || !lastName) {
       alert("Please fill out LRN, First Name, and Last Name.");
       return;
     }
-
     const student: Student = {
       lrn,
       firstName,
-      middleInitial: middleInitial || "None",
+      middleInitial: middleInitial || "N/A",
       lastName,
       sex: sex as "Male" | "Female",
       grade: grade as "7" | "8" | "9" | "10",
       attendance: 0,
     };
-
     try {
       await addStudent(student);
       alert(`Added ${firstName} ${lastName} successfully!`);
-
-      // reset form
+      // Reset form
       setLrn("");
       setFirstName("");
       setMiddleInitial("");
       setLastName("");
       setSex("Male");
       setGrade("7");
-
-      // refresh list
       fetchStudents();
     } catch (err) {
       console.error("Failed to add student:", err);
-      alert("Error adding student.");
+      alert("Error adding student. LRN might already exist.");
     }
   };
 
+  // --- STUDENT DATA HANDLERS ---
   const handleExportJSON = async () => {
-    const dataStr =
-      "data:text/json;charset=utf-8," +
-      encodeURIComponent(JSON.stringify(students, null, 2));
+    const dataStr = `data:text/json;charset=utf-8,${encodeURIComponent(
+      JSON.stringify(students, null, 2)
+    )}`;
     const dlAnchorElem = document.createElement("a");
     dlAnchorElem.setAttribute("href", dataStr);
     dlAnchorElem.setAttribute("download", "students.json");
@@ -86,9 +90,8 @@ const AdminPage: React.FC = () => {
   const handleImportJSON = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    const text = await file.text();
     try {
+      const text = await file.text();
       const importedStudents: Student[] = JSON.parse(text);
       for (const s of importedStudents) {
         if (s.lrn) await addStudent(s);
@@ -96,44 +99,70 @@ const AdminPage: React.FC = () => {
       alert(`Imported ${importedStudents.length} students successfully!`);
       fetchStudents();
     } catch (err) {
-      alert("Invalid JSON file");
+      alert("Invalid JSON file.");
       console.error(err);
     }
   };
 
-  const exportToExcel = async () => {
+  const handleExportStudentExcel = async () => {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Students");
-
     sheet.columns = [
       { header: "LRN", key: "lrn", width: 15 },
-      { header: "Name", key: "name", width: 25 },
-      { header: "Middle Initial", key: "middleInitial", width: 10 },
+      { header: "First Name", key: "firstName", width: 25 },
+      { header: "Last Name", key: "lastName", width: 25 },
+      { header: "M.I.", key: "middleInitial", width: 10 },
       { header: "Sex", key: "sex", width: 10 },
       { header: "Grade", key: "grade", width: 10 },
-      { header: "Attendance", key: "attendance", width: 10 },
+      { header: "Attendance", key: "attendance", width: 15 },
     ];
-
-    students.forEach((s) => {
-      sheet.addRow({
-        lrn: s.lrn,
-        name: s.firstName,
-        middleInitial: s.middleInitial || "None",
-        sex: s.sex,
-        grade: s.grade,
-        attendance: s.attendance || 0,
-      });
-    });
-
+    students.forEach((s) => sheet.addRow(s));
     const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: "application/octet-stream" });
-    saveAs(blob, "students.xlsx");
+    saveAs(new Blob([buffer]), "students.xlsx");
   };
 
-  const exportDailyStatsToExcel = async () => {
+  const handleImportStudentExcel = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(await file.arrayBuffer());
+    const sheet = workbook.worksheets[0];
+    let importedCount = 0;
+    sheet.eachRow(async (row, rowNumber) => {
+      if (rowNumber === 1) return; // Skip header
+      const [
+        ,
+        lrn,
+        firstName,
+        lastName,
+        middleInitial,
+        sex,
+        grade,
+        attendance,
+      ] = row.values as any[];
+      if (lrn) {
+        await addStudent({
+          lrn: String(lrn),
+          firstName: String(firstName || ""),
+          lastName: String(lastName || ""),
+          middleInitial: String(middleInitial || "N/A"),
+          sex: String(sex) as "Male" | "Female",
+          grade: String(grade) as "7" | "8" | "9" | "10",
+          attendance: Number(attendance) || 0,
+        });
+        importedCount++;
+      }
+    });
+    alert(`Imported ${importedCount} students!`);
+    fetchStudents();
+  };
+
+  // --- DAILY STATS HANDLERS ---
+  const handleExportStatsExcel = async () => {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Daily Stats");
-
     sheet.columns = [
       { header: "Date", key: "date", width: 15 },
       { header: "Grade 7", key: "grade7", width: 10 },
@@ -141,185 +170,151 @@ const AdminPage: React.FC = () => {
       { header: "Grade 9", key: "grade9", width: 10 },
       { header: "Grade 10", key: "grade10", width: 10 },
     ];
-
-    dailyStats.forEach((stat) => {
-      sheet.addRow({
-        date: stat.date,
-        grade7: stat.grade7,
-        grade8: stat.grade8,
-        grade9: stat.grade9,
-        grade10: stat.grade10,
-      });
-    });
-
+    dailyStats.forEach((stat) => sheet.addRow(stat));
     const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: "application/octet-stream" });
-    saveAs(blob, "daily_stats.xlsx");
+    saveAs(new Blob([buffer]), "daily_stats.xlsx");
   };
 
-  // Import Daily Stats from Excel
-  const handleImportDailyStatsExcel = async (
+  const handleImportStatsExcel = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(await file.arrayBuffer());
     const sheet = workbook.worksheets[0];
-
-    let importedCount = 0;
-    // Assume headers: Date, Grade 7, Grade 8, Grade 9, Grade 10
-    const rowsToInsert: DailyStats[] = [];
+    const statsToImport: DailyStats[] = [];
     sheet.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return; // skip header
-      const rowValues = row.values as Array<any> | undefined;
-      if (!rowValues) return;
-      // row.values[0] is usually empty, so slice from index 1
-      const [dateCell, grade7Cell, grade8Cell, grade9Cell, grade10Cell] =
-        rowValues.slice(1);
-      if (!dateCell) return;
-      const stat: DailyStats = {
-        date: String(dateCell),
-        grade7: Number(grade7Cell) || 0,
-        grade8: Number(grade8Cell) || 0,
-        grade9: Number(grade9Cell) || 0,
-        grade10: Number(grade10Cell) || 0,
-      };
-      rowsToInsert.push(stat);
-      importedCount++;
+      if (rowNumber === 1) return; // Skip header
+      const [, date, grade7, grade8, grade9, grade10] = row.values as any[];
+      if (date) {
+        statsToImport.push({
+          date: String(date),
+          grade7: Number(grade7) || 0,
+          grade8: Number(grade8) || 0,
+          grade9: Number(grade9) || 0,
+          grade10: Number(grade10) || 0,
+        });
+      }
     });
-    // Insert all rows
-    for (const stat of rowsToInsert) {
+    for (const stat of statsToImport) {
       await db.dailyStats.put(stat);
     }
-    // Refresh state by re-fetching from DB
     const allStats = await db.dailyStats.toArray();
     setDailyStats(allStats);
-    alert(`Imported ${importedCount} daily stats successfully!`);
+    alert(`Imported ${statsToImport.length} daily stat records!`);
   };
 
-  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(await file.arrayBuffer());
-    const sheet = workbook.worksheets[0];
-
-    let importedCount = 0;
-
-    sheet.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return; // skip header row
-
-      const rowValues = row.values as Array<any> | undefined;
-      if (!rowValues) return;
-
-      // row.values[0] is usually empty, so slice from index 1
-      const [
-        lrnCell,
-        nameCell,
-        middleCell,
-        sexCell,
-        gradeCell,
-        attendanceCell,
-      ] = rowValues.slice(1);
-
-      if (!lrnCell) return; // skip if no LRN
-
-      const student: Student = {
-        lrn: String(lrnCell),
-        firstName: String(nameCell || ""),
-        middleInitial: String(middleCell || "None"),
-        lastName: String(nameCell || ""),
-        sex: String(sexCell) as "Male" | "Female",
-        grade: String(gradeCell) as "7" | "8" | "9" | "10",
-        attendance: Number(attendanceCell) || 0,
-      };
-
-      addStudent(student);
-      importedCount++;
-    });
-
-    alert(`Imported ${importedCount} students successfully!`);
-    fetchStudents();
+  // --- STYLES ---
+  const pageStyle: React.CSSProperties = {
+    display: "flex",
+    gap: "1.5rem",
+    width: "100vw",
+    minHeight: "100vh",
+    padding: "1.5rem",
+    backgroundColor: "rgba(58, 140, 75, 0.05)",
+    fontFamily: "'Poppins', sans-serif",
+  };
+  const cardStyle: React.CSSProperties = {
+    backgroundColor: "#ffffff",
+    borderRadius: "1rem",
+    padding: "2rem",
+    boxShadow: "var(--shadow)",
+    display: "flex",
+    flexDirection: "column",
+  };
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "0.75rem",
+    borderRadius: "8px",
+    border: "1px solid var(--border-color)",
+    fontSize: "1rem",
+    marginTop: "0.25rem",
+  };
+  const buttonStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "0.75rem",
+    backgroundColor: "var(--green)",
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "1rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    marginTop: "1rem",
+  };
+  const secondaryButtonStyle: React.CSSProperties = {
+    ...buttonStyle,
+    backgroundColor: "var(--light-gray)",
+    color: "var(--dark-text)",
+    border: "1px solid var(--border-color)",
+  };
+  const tableContainerStyle: React.CSSProperties = {
+    flexGrow: 1,
+    overflowY: "auto",
+    marginTop: "1rem",
   };
 
   return (
-    <div
-      className="d-flex"
-      style={{ width: "100vw", height: "100vh", padding: "15px" }}
-    >
-      <div
-        className="w-50"
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-      >
-        <div
-          className="card shadow p-4 mb-4"
-          style={{ width: "70%", height: "auto" }}
-        >
-          <h3 className="text-center mb-4">Add New Student</h3>
-          <form onSubmit={handleSubmit}>
-            <div className="mb-3">
-              <label className="form-label">LRN</label>
+    <div style={pageStyle}>
+      {/* Left Column: Add Student */}
+      <div style={{ width: "35%" }}>
+        <div style={cardStyle}>
+          <h3
+            style={{
+              textAlign: "center",
+              fontFamily: "'Nunito Sans', sans-serif",
+              fontWeight: 800,
+            }}
+          >
+            Add New Student
+          </h3>
+          <form onSubmit={handleSubmit} style={{ marginTop: "1.5rem" }}>
+            {/* Form Fields */}
+            <div>
+              <label>LRN</label>
               <input
                 type="text"
-                className="form-control"
+                style={inputStyle}
                 value={lrn}
                 onChange={(e) => setLrn(e.target.value)}
               />
             </div>
-
-            <div
-              className="mb-3"
-              style={{ width: "100%", display: "flex", gap: "10px" }}
-            >
+            <div style={{ display: "flex", gap: "1rem", marginTop: "1rem" }}>
               <div style={{ flex: 1 }}>
-                <label className="form-label">First Name</label>
+                <label>First Name</label>
                 <input
                   type="text"
-                  className="form-control"
+                  style={inputStyle}
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  style={{ width: "100%" }}
                 />
               </div>
               <div style={{ width: "80px" }}>
-                <label className="form-label">M.I.</label>
+                <label>M.I.</label>
                 <input
                   type="text"
-                  className="form-control"
+                  style={inputStyle}
                   value={middleInitial}
                   onChange={(e) => setMiddleInitial(e.target.value)}
                   maxLength={3}
                 />
               </div>
             </div>
-
-            <div className="mb-3"></div>
-
-            <div className="mb-3">
-              <label className="form-label">Last Name</label>
+            <div style={{ marginTop: "1rem" }}>
+              <label>Last Name</label>
               <input
                 type="text"
-                className="form-control"
+                style={inputStyle}
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
               />
             </div>
-
-            <div
-              className="mb-3"
-              style={{ display: "flex", gap: "10px", width: "100%" }}
-            >
+            <div style={{ display: "flex", gap: "1rem", marginTop: "1rem" }}>
               <div style={{ flex: 1 }}>
-                <label className="form-label">Sex</label>
+                <label>Sex</label>
                 <select
-                  className="form-select"
+                  style={inputStyle}
                   value={sex}
                   onChange={(e) => setSex(e.target.value)}
                 >
@@ -328,9 +323,9 @@ const AdminPage: React.FC = () => {
                 </select>
               </div>
               <div style={{ flex: 1 }}>
-                <label className="form-label">Grade</label>
+                <label>Grade</label>
                 <select
-                  className="form-select"
+                  style={inputStyle}
                   value={grade}
                   onChange={(e) => setGrade(e.target.value)}
                 >
@@ -341,77 +336,148 @@ const AdminPage: React.FC = () => {
                 </select>
               </div>
             </div>
-
-            <button type="submit" className="btn btn-primary w-100">
+            <button type="submit" style={buttonStyle}>
               Add Student
             </button>
           </form>
         </div>
       </div>
 
-      <div className="w-50 d-flex flex-column" style={{ height: "100%" }}>
-        <div
-          className="card shadow p-3 mb-4"
-          style={{
-            maxWidth: "100%",
-            width: "100%",
-            height: "50%",
-            position: "relative",
-          }}
-        >
-          <h4 className="text-center mb-3">Daily Grade Stats</h4>
-          <button
-            type="button"
-            data-bs-toggle="collapse"
-            data-bs-target="#dailyStatsCollapse"
-            aria-expanded="false"
-            aria-controls="dailyStatsCollapse"
+      {/* Right Column: Data Tables */}
+      <div
+        style={{
+          width: "65%",
+          display: "flex",
+          flexDirection: "column",
+          gap: "1.5rem",
+        }}
+      >
+        {/* Current Students Table */}
+        <div style={{ ...cardStyle, flex: 1 }}>
+          <h4
+            style={{ fontFamily: "'Nunito Sans', sans-serif", fontWeight: 800 }}
+          >
+            Student Roster
+          </h4>
+          {/* Data Management */}
+          <div
             style={{
-              position: "absolute",
-              top: "1rem",
-              left: "1rem",
-              border: "none",
-              background: "none",
-              padding: 0,
-              margin: 0,
-              fontSize: "1.5rem",
-              color: "black",
-              cursor: "pointer",
-              lineHeight: 1,
+              borderTop: "1px solid var(--border-color)",
+              marginTop: "1rem",
+              paddingTop: "1rem",
             }}
           >
-            ☰
-          </button>
-          <div
-            className="collapse mb-3"
-            id="dailyStatsCollapse"
-            style={{ height: "100%" }}
-          >
-            <div className="d-flex gap-2 mt-3">
+            <h5 style={{ fontSize: "1rem", color: "var(--light-text)" }}>
+              Data Management
+            </h5>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr 1fr",
+                gap: "1rem",
+                marginTop: "0.5rem",
+              }}
+            >
               <button
-                type="button"
-                onClick={exportDailyStatsToExcel}
-                className="btn btn-success w-100"
+                style={secondaryButtonStyle}
+                onClick={() => importJsonRef.current?.click()}
               >
-                Export Daily Stats to Excel
+                Import JSON
+              </button>
+              <button
+                style={secondaryButtonStyle}
+                onClick={() => importStudentExcelRef.current?.click()}
+              >
+                Import Excel
+              </button>
+              <button style={buttonStyle} onClick={handleExportJSON}>
+                Export JSON
+              </button>
+              <button style={buttonStyle} onClick={handleExportStudentExcel}>
+                Export Excel
               </button>
             </div>
-            <div className="mt-3">
-              <label htmlFor="importDailyStatsExcel" className="form-label">
-                Import Daily Stats from Excel
-              </label>
-              <input
-                type="file"
-                id="importDailyStatsExcel"
-                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                className="form-control"
-                onChange={handleImportDailyStatsExcel}
-              />
+          </div>
+          {/* Table */}
+          <div style={tableContainerStyle}>
+            <table className="table table-striped">
+              <thead
+                style={{
+                  backgroundColor: "var(--green)",
+                  color: "white",
+                  position: "sticky",
+                  top: 0,
+                }}
+              >
+                <tr>
+                  <th>LRN</th>
+                  <th>Name</th>
+                  <th>Sex</th>
+                  <th>Grade</th>
+                  <th>Attendance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {students.map((s) => (
+                  <tr key={s.lrn}>
+                    <td>{s.lrn}</td>
+                    <td>{`${s.lastName}, ${s.firstName} ${s.middleInitial}`}</td>
+                    <td>{s.sex}</td>
+                    <td>{s.grade}</td>
+                    <td>{s.attendance || 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Daily Stats Table */}
+        <div style={{ ...cardStyle, flex: 1 }}>
+          <h4
+            style={{ fontFamily: "'Nunito Sans', sans-serif", fontWeight: 800 }}
+          >
+            Daily Attendance Stats
+          </h4>
+          <div
+            style={{
+              borderTop: "1px solid var(--border-color)",
+              marginTop: "1rem",
+              paddingTop: "1rem",
+            }}
+          >
+            <h5 style={{ fontSize: "1rem", color: "var(--light-text)" }}>
+              Data Management
+            </h5>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "1rem",
+                marginTop: "0.5rem",
+              }}
+            >
+              <button
+                style={secondaryButtonStyle}
+                onClick={() => importStatsExcelRef.current?.click()}
+              >
+                Import from Excel
+              </button>
+              <button style={buttonStyle} onClick={handleExportStatsExcel}>
+                Export to Excel
+              </button>
             </div>
           </div>
-          <div style={{ overflowX: "auto" }}>
-            <table className="table table-striped table-bordered">
-              <thead className="table-dark">
+          <div style={tableContainerStyle}>
+            <table className="table table-striped">
+              <thead
+                style={{
+                  backgroundColor: "var(--green)",
+                  color: "white",
+                  position: "sticky",
+                  top: 0,
+                }}
+              >
                 <tr>
                   <th>Date</th>
                   <th>Grade 7</th>
@@ -435,125 +501,28 @@ const AdminPage: React.FC = () => {
           </div>
         </div>
 
-        <div
-          className="card shadow p-3"
-          style={{
-            maxWidth: "100%",
-            width: "100%",
-            height: "50%",
-            flexGrow: 1,
-            overflowY: "auto",
-            position: "relative",
-          }}
-        >
-          <h4 className="text-center mb-3">Current Students</h4>
-          <button
-            type="button"
-            data-bs-toggle="collapse"
-            data-bs-target="#importCollapse"
-            aria-expanded="false"
-            aria-controls="importCollapse"
-            style={{
-              position: "absolute",
-              top: "1rem",
-              left: "1rem",
-              border: "none",
-              background: "none",
-              padding: 0,
-              margin: 0,
-              fontSize: "1.5rem",
-              color: "black",
-              cursor: "pointer",
-              lineHeight: 1,
-            }}
-          >
-            ☰
-          </button>
-
-          <div
-            className="collapse mb-3"
-            id="importCollapse"
-            style={{ height: "100%" }}
-          >
-            <div className="mt-3">
-              <label htmlFor="importJSON" className="form-label">
-                Import JSON
-              </label>
-              <input
-                type="file"
-                id="importJSON"
-                accept=".json,application/json"
-                className="form-control"
-                onChange={handleImportJSON}
-              />
-            </div>
-            <div className="mt-3">
-              <label htmlFor="importExcel" className="form-label">
-                Import Excel
-              </label>
-              <input
-                type="file"
-                id="importExcel"
-                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                className="form-control"
-                onChange={handleImportExcel}
-              />
-            </div>
-            <div className="d-flex gap-2 mt-3">
-              <button
-                type="button"
-                onClick={handleExportJSON}
-                className="btn btn-secondary w-50"
-              >
-                Export to JSON
-              </button>
-              <button
-                type="button"
-                onClick={exportToExcel}
-                className="btn btn-success w-50"
-              >
-                Export to Excel
-              </button>
-            </div>
-          </div>
-
-          <div style={{ overflowX: "auto" }}>
-            <table className="table table-striped table-bordered">
-              <thead className="table-dark">
-                <tr>
-                  <th>LRN</th>
-                  <th>First Name</th>
-                  <th>MI</th>
-                  <th>Last Name</th>
-                  <th>Sex</th>
-                  <th>Grade</th>
-                  <th>Attendance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {students.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="text-center">
-                      No students yet
-                    </td>
-                  </tr>
-                ) : (
-                  students.map((s) => (
-                    <tr key={s.lrn}>
-                      <td>{s.lrn}</td>
-                      <td>{s.firstName}</td>
-                      <td>{s.middleInitial || "None"}</td>
-                      <td>{s.lastName}</td>
-                      <td>{s.sex}</td>
-                      <td>{s.grade}</td>
-                      <td>{s.attendance || 0}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {/* Hidden File Inputs */}
+        <input
+          type="file"
+          ref={importJsonRef}
+          onChange={handleImportJSON}
+          style={{ display: "none" }}
+          accept=".json"
+        />
+        <input
+          type="file"
+          ref={importStudentExcelRef}
+          onChange={handleImportStudentExcel}
+          style={{ display: "none" }}
+          accept=".xlsx"
+        />
+        <input
+          type="file"
+          ref={importStatsExcelRef}
+          onChange={handleImportStatsExcel}
+          style={{ display: "none" }}
+          accept=".xlsx"
+        />
       </div>
     </div>
   );
