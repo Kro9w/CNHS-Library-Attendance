@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useRef } from "react";
-import type { DailyStats } from "../services/db";
-import {
-  addStudent,
-  getAllStudents,
-  subscribeToDailyStats,
-} from "../services/studentService";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  type CSSProperties,
+} from "react";
+import { addStudent, getAllStudents } from "../services/studentService";
 import type { Student } from "../types/student";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
-import { db } from "../services/db";
 import "@fontsource/nunito-sans/800.css";
 import "@fontsource/poppins/400.css";
 import "@fontsource/poppins/600.css";
@@ -21,19 +21,11 @@ const AdminPage: React.FC = () => {
   const [sex, setSex] = useState("Male");
   const [grade, setGrade] = useState("7");
   const [students, setStudents] = useState<Student[]>([]);
-  const [dailyStats, setDailyStats] = useState<DailyStats[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedGrade, setSelectedGrade] = useState<string>(""); // For the grade filter dropdown
 
-  // Refs for file inputs to trigger them from styled buttons
   const importJsonRef = useRef<HTMLInputElement>(null);
   const importStudentExcelRef = useRef<HTMLInputElement>(null);
-  const importStatsExcelRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const unsubscribe = subscribeToDailyStats((stats: DailyStats[]) => {
-      setDailyStats(stats);
-    });
-    return () => unsubscribe();
-  }, []);
 
   useEffect(() => {
     fetchStudents();
@@ -62,7 +54,6 @@ const AdminPage: React.FC = () => {
     try {
       await addStudent(student);
       alert(`Added ${firstName} ${lastName} successfully!`);
-      // Reset form
       setLrn("");
       setFirstName("");
       setMiddleInitial("");
@@ -76,7 +67,6 @@ const AdminPage: React.FC = () => {
     }
   };
 
-  // --- STUDENT DATA HANDLERS ---
   const handleExportJSON = async () => {
     const dataStr = `data:text/json;charset=utf-8,${encodeURIComponent(
       JSON.stringify(students, null, 2)
@@ -159,71 +149,64 @@ const AdminPage: React.FC = () => {
     fetchStudents();
   };
 
-  // --- DAILY STATS HANDLERS ---
-  const handleExportStatsExcel = async () => {
-    const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet("Daily Stats");
-    sheet.columns = [
-      { header: "Date", key: "date", width: 15 },
-      { header: "Grade 7", key: "grade7", width: 10 },
-      { header: "Grade 8", key: "grade8", width: 10 },
-      { header: "Grade 9", key: "grade9", width: 10 },
-      { header: "Grade 10", key: "grade10", width: 10 },
-    ];
-    dailyStats.forEach((stat) => sheet.addRow(stat));
-    const buffer = await workbook.xlsx.writeBuffer();
-    saveAs(new Blob([buffer]), "daily_stats.xlsx");
-  };
+  const filteredStudents = useMemo(() => {
+    let filtered = students;
 
-  const handleImportStatsExcel = async (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(await file.arrayBuffer());
-    const sheet = workbook.worksheets[0];
-    const statsToImport: DailyStats[] = [];
-    sheet.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return; // Skip header
-      const [, date, grade7, grade8, grade9, grade10] = row.values as any[];
-      if (date) {
-        statsToImport.push({
-          date: String(date),
-          grade7: Number(grade7) || 0,
-          grade8: Number(grade8) || 0,
-          grade9: Number(grade9) || 0,
-          grade10: Number(grade10) || 0,
-        });
-      }
-    });
-    for (const stat of statsToImport) {
-      await db.dailyStats.put(stat);
+    if (selectedGrade) {
+      filtered = filtered.filter((student) => student.grade === selectedGrade);
     }
-    const allStats = await db.dailyStats.toArray();
-    setDailyStats(allStats);
-    alert(`Imported ${statsToImport.length} daily stat records!`);
-  };
 
-  // --- STYLES ---
-  const pageStyle: React.CSSProperties = {
+    if (searchTerm) {
+      const lowercasedValue = searchTerm.toLowerCase();
+      filtered = filtered.filter((student) => {
+        const fullName =
+          `${student.firstName} ${student.lastName}`.toLowerCase();
+        return (
+          student.lrn.startsWith(searchTerm) ||
+          fullName.includes(lowercasedValue)
+        );
+      });
+    }
+
+    // If a grade is selected, we don't need to check for search term to show results
+    if (selectedGrade && !searchTerm) {
+      return filtered;
+    }
+
+    // If no grade is selected, only show results if a search term is present
+    if (!selectedGrade && searchTerm) {
+      return filtered;
+    }
+
+    // If a grade is selected and there's a search term, return the combined filter
+    if (selectedGrade && searchTerm) {
+      return filtered;
+    }
+
+    // Default to an empty array if no filters are active
+    return [];
+  }, [students, searchTerm, selectedGrade]);
+
+  const pageStyle: CSSProperties = {
     display: "flex",
     gap: "1.5rem",
     width: "100vw",
-    minHeight: "100vh",
+    height: "100vh",
     padding: "1.5rem",
     backgroundColor: "rgba(58, 140, 75, 0.05)",
     fontFamily: "'Poppins', sans-serif",
+    boxSizing: "border-box",
   };
-  const cardStyle: React.CSSProperties = {
+  const cardStyle: CSSProperties = {
     backgroundColor: "#ffffff",
     borderRadius: "1rem",
     padding: "2rem",
     boxShadow: "var(--shadow)",
     display: "flex",
     flexDirection: "column",
+    height: "100%",
   };
-  const inputStyle: React.CSSProperties = {
+  const inputStyle: CSSProperties = {
     width: "100%",
     padding: "0.75rem",
     borderRadius: "8px",
@@ -231,34 +214,27 @@ const AdminPage: React.FC = () => {
     fontSize: "1rem",
     marginTop: "0.25rem",
   };
-  const buttonStyle: React.CSSProperties = {
-    width: "100%",
-    padding: "0.75rem",
+  const buttonStyle: CSSProperties = {
+    padding: "0.5rem 1rem",
     backgroundColor: "var(--green)",
     color: "white",
     border: "none",
     borderRadius: "8px",
-    fontSize: "1rem",
+    fontSize: "0.9rem",
     fontWeight: 600,
     cursor: "pointer",
-    marginTop: "1rem",
   };
-  const secondaryButtonStyle: React.CSSProperties = {
+  const secondaryButtonStyle: CSSProperties = {
     ...buttonStyle,
     backgroundColor: "var(--light-gray)",
     color: "var(--dark-text)",
     border: "1px solid var(--border-color)",
   };
-  const tableContainerStyle: React.CSSProperties = {
-    flexGrow: 1,
-    overflowY: "auto",
-    marginTop: "1rem",
-  };
 
   return (
     <div style={pageStyle}>
       {/* Left Column: Add Student */}
-      <div style={{ width: "35%" }}>
+      <div style={{ width: "35%", height: "100%" }}>
         <div style={cardStyle}>
           <h3
             style={{
@@ -269,8 +245,15 @@ const AdminPage: React.FC = () => {
           >
             Add New Student
           </h3>
-          <form onSubmit={handleSubmit} style={{ marginTop: "1.5rem" }}>
-            {/* Form Fields */}
+          <form
+            onSubmit={handleSubmit}
+            style={{
+              marginTop: "1.5rem",
+              flexGrow: 1,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
             <div>
               <label>LRN</label>
               <input
@@ -336,48 +319,68 @@ const AdminPage: React.FC = () => {
                 </select>
               </div>
             </div>
-            <button type="submit" style={buttonStyle}>
+            <button
+              type="submit"
+              style={{ ...buttonStyle, width: "100%", marginTop: "2rem" }}
+            >
               Add Student
             </button>
+            <div
+              style={{
+                marginTop: "auto",
+                paddingTop: "2rem",
+                textAlign: "center",
+                color: "var(--light-text)",
+                fontSize: "0.7rem",
+              }}
+            >
+              <h4
+                style={{
+                  fontFamily: "'Nunito Sans', sans-serif",
+                  fontWeight: 800,
+                  color: "var(--green)",
+                  marginBottom: "0.3rem",
+                }}
+              >
+                SOLARI
+              </h4>
+              <p style={{ margin: 0 }}>Version 1.0.0-beta</p>
+              <p style={{ margin: 0 }}>Developed by CSU BLIS - BATCH SOLARI</p>
+              <p style={{ margin: "8px 0 0 0" }}>
+                © 2024. All Rights Reserved.
+              </p>
+            </div>
           </form>
         </div>
       </div>
 
-      {/* Right Column: Data Tables */}
+      {/* Right Column: Student Roster */}
       <div
         style={{
           width: "65%",
+          height: "100%",
           display: "flex",
           flexDirection: "column",
-          gap: "1.5rem",
         }}
       >
-        {/* Current Students Table */}
-        <div style={{ ...cardStyle, flex: 1 }}>
-          <h4
-            style={{ fontFamily: "'Nunito Sans', sans-serif", fontWeight: 800 }}
-          >
-            Student Roster
-          </h4>
-          {/* Data Management */}
+        <div style={{ ...cardStyle, flex: 1, overflow: "hidden" }}>
           <div
             style={{
-              borderTop: "1px solid var(--border-color)",
-              marginTop: "1rem",
-              paddingTop: "1rem",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
             }}
           >
-            <h5 style={{ fontSize: "1rem", color: "var(--light-text)" }}>
-              Data Management
-            </h5>
-            <div
+            <h4
               style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr 1fr",
-                gap: "1rem",
-                marginTop: "0.5rem",
+                fontFamily: "'Nunito Sans', sans-serif",
+                fontWeight: 800,
+                margin: 0,
               }}
             >
+              Student Roster
+            </h4>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
               <button
                 style={secondaryButtonStyle}
                 onClick={() => importJsonRef.current?.click()}
@@ -398,8 +401,35 @@ const AdminPage: React.FC = () => {
               </button>
             </div>
           </div>
-          {/* Table */}
-          <div style={tableContainerStyle}>
+          <div
+            style={{
+              marginTop: "1rem",
+              borderTop: "1px solid var(--border-color)",
+              paddingTop: "1rem",
+              display: "flex",
+              gap: "1rem",
+            }}
+          >
+            <input
+              type="text"
+              placeholder="Search by LRN or name..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{ ...inputStyle, width: "100%", marginTop: 0 }}
+            />
+            <select
+              style={{ ...inputStyle, width: "200px", marginTop: 0 }}
+              value={selectedGrade}
+              onChange={(e) => setSelectedGrade(e.target.value)}
+            >
+              <option value="">All Grades</option>
+              <option value="7">Grade 7</option>
+              <option value="8">Grade 8</option>
+              <option value="9">Grade 9</option>
+              <option value="10">Grade 10</option>
+            </select>
+          </div>
+          <div style={{ flex: "1 1 0", overflowY: "auto", marginTop: "1rem" }}>
             <table className="table table-striped">
               <thead
                 style={{
@@ -407,6 +437,7 @@ const AdminPage: React.FC = () => {
                   color: "white",
                   position: "sticky",
                   top: 0,
+                  zIndex: 1,
                 }}
               >
                 <tr>
@@ -418,90 +449,34 @@ const AdminPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {students.map((s) => (
-                  <tr key={s.lrn}>
-                    <td>{s.lrn}</td>
-                    <td>{`${s.lastName}, ${s.firstName} ${s.middleInitial}`}</td>
-                    <td>{s.sex}</td>
-                    <td>{s.grade}</td>
-                    <td>{s.attendance || 0}</td>
+                {!searchTerm && !selectedGrade ? (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      style={{
+                        textAlign: "center",
+                        padding: "2rem",
+                        color: "var(--light-text)",
+                      }}
+                    >
+                      Search or select a grade level to view students.
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredStudents.map((s) => (
+                    <tr key={s.lrn}>
+                      <td>{s.lrn}</td>
+                      <td>{`${s.lastName}, ${s.firstName} ${s.middleInitial}`}</td>
+                      <td>{s.sex}</td>
+                      <td>{s.grade}</td>
+                      <td>{s.attendance || 0}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
         </div>
-
-        {/* Daily Stats Table */}
-        <div style={{ ...cardStyle, flex: 1 }}>
-          <h4
-            style={{ fontFamily: "'Nunito Sans', sans-serif", fontWeight: 800 }}
-          >
-            Daily Attendance Stats
-          </h4>
-          <div
-            style={{
-              borderTop: "1px solid var(--border-color)",
-              marginTop: "1rem",
-              paddingTop: "1rem",
-            }}
-          >
-            <h5 style={{ fontSize: "1rem", color: "var(--light-text)" }}>
-              Data Management
-            </h5>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "1rem",
-                marginTop: "0.5rem",
-              }}
-            >
-              <button
-                style={secondaryButtonStyle}
-                onClick={() => importStatsExcelRef.current?.click()}
-              >
-                Import from Excel
-              </button>
-              <button style={buttonStyle} onClick={handleExportStatsExcel}>
-                Export to Excel
-              </button>
-            </div>
-          </div>
-          <div style={tableContainerStyle}>
-            <table className="table table-striped">
-              <thead
-                style={{
-                  backgroundColor: "var(--green)",
-                  color: "white",
-                  position: "sticky",
-                  top: 0,
-                }}
-              >
-                <tr>
-                  <th>Date</th>
-                  <th>Grade 7</th>
-                  <th>Grade 8</th>
-                  <th>Grade 9</th>
-                  <th>Grade 10</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dailyStats.map((stat) => (
-                  <tr key={stat.date}>
-                    <td>{stat.date}</td>
-                    <td>{stat.grade7}</td>
-                    <td>{stat.grade8}</td>
-                    <td>{stat.grade9}</td>
-                    <td>{stat.grade10}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Hidden File Inputs */}
         <input
           type="file"
           ref={importJsonRef}
@@ -513,13 +488,6 @@ const AdminPage: React.FC = () => {
           type="file"
           ref={importStudentExcelRef}
           onChange={handleImportStudentExcel}
-          style={{ display: "none" }}
-          accept=".xlsx"
-        />
-        <input
-          type="file"
-          ref={importStatsExcelRef}
-          onChange={handleImportStatsExcel}
           style={{ display: "none" }}
           accept=".xlsx"
         />
