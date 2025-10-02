@@ -92,7 +92,7 @@ const AnimatedCard: React.FC<{
 const HomeScreen: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [scannedLRN, setScannedLRN] = useState("");
-  const [greeting, setGreeting] = useState("Welcome to the Library!");
+  const [greeting] = useState("Welcome to the Library!");
   const [lastScannedName, setLastScannedName] = useState("");
   const [warning, setWarning] = useState("");
   const [gradeCounters, setGradeCounters] = useState<GradeCounter>({

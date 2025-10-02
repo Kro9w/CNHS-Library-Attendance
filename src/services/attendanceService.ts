@@ -3,7 +3,20 @@ import type { AttendanceLog } from "../types/attendance";
 import type { Student } from "../types/student";
 import { getAllStudents, getTodaysLogs, getAllLogs } from "./studentService";
 
+// This helper function is now imported from studentService,
+// but it's good practice to have it available if needed.
+const getLocalDateString = () => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+
 // Automatically log attendance by LRN
+// Note: This function's primary logic is now in studentService.ts, 
+// this is kept for compatibility if called elsewhere.
 export const logAttendance = async (lrn: string) => {
   const student: Student | undefined = await db.students.get(lrn);
 
@@ -11,10 +24,15 @@ export const logAttendance = async (lrn: string) => {
     console.warn(`Student with LRN ${lrn} not found`);
     return;
   }
+  
+  const now = new Date();
 
+  // The attendance object's timeIn should be a Date object to be compatible with original logic.
+  // The filtering in `getTodaysLogs` will handle the date string comparison.
   const attendance: AttendanceLog = {
     studentLrn: lrn,
-    timeIn: new Date(),
+    timestamp: now.toISOString(),
+    timeIn: now, 
     grade: student.grade,
     sex: student.sex,
   };
@@ -48,7 +66,8 @@ export const getVisitsPerGrade = async () => {
 
 export async function getTodaysGenderBreakdown() {
   const allStudents = await getAllStudents();
-  const todaysLogs = await getTodaysLogs();
+  // This function from studentService.ts now correctly gets logs for the local "today"
+  const todaysLogs = await getTodaysLogs(); 
 
   const studentMap = new Map<string, Student>();
   allStudents.forEach((student) => {
@@ -65,7 +84,7 @@ export async function getTodaysGenderBreakdown() {
   todaysLogs.forEach((log) => {
     const student = studentMap.get(log.studentLrn);
     if (student) {
-      const grade = student.grade;
+      const grade = parseInt(student.grade, 10); // Ensure grade is a number for the key
       const sex = student.sex;
       if (breakdown[grade]) {
         if (sex === "Male") {
@@ -77,7 +96,7 @@ export async function getTodaysGenderBreakdown() {
     }
   });
 
-  console.log("Computed breakdown:", breakdown);
+  console.log("Computed gender breakdown:", breakdown);
 
   return breakdown;
 }
@@ -96,6 +115,7 @@ export async function getTopMonthlyVisitors() {
 
   // Filter logs for the current month
   const monthlyLogs = allLogs.filter((log) => {
+    // Reverted to using the original `log.timestamp` which is a string
     const logDate = new Date(log.timestamp);
     return (
       logDate.getMonth() === currentMonth &&
@@ -151,6 +171,7 @@ export async function getRecentVisitors() {
   });
 
   // Sort logs by timestamp in descending order and take the last 5
+  // Reverted to using `log.timestamp` which is a string
   const recentLogs = todaysLogs
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
     .slice(0, 5);
@@ -171,3 +192,4 @@ export async function getRecentVisitors() {
 
   return recentVisitors;
 }
+

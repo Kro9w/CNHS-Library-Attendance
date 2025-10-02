@@ -6,20 +6,24 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   PieChart,
   Pie,
   Cell,
   ResponsiveContainer,
 } from "recharts";
-import { getAllDailyStats } from "@/services/studentService";
 import {
-  getTodaysGenderBreakdown,
+  getAllDailyStats,
+  getAllStudents,
+  getAllLogs,
+} from "../services/studentService";
+import {
   getTopMonthlyVisitors,
   getTodaysSnapshot,
   getRecentVisitors,
-} from "@/services/attendanceService";
-import type { DailyGradeCounter } from "@/types/dailyCounter";
+} from "../services/attendanceService";
+import type { DailyGradeCounter } from "../types/dailyCounter";
+import type { AttendanceLog } from "../types/attendance";
+import type { Student } from "../types/student";
 
 // Define the type for the chart data
 type ChartData = {
@@ -57,8 +61,8 @@ const ExportDataConcept: React.FC = () => {
 
   const dialogStyle: React.CSSProperties = {
     position: "absolute",
-    top: "25px", // Positioned diagonally below the dot
-    right: "25px",
+    top: "30px", // Positioned diagonally below the dot
+    right: "30px",
     backgroundColor: "white",
     padding: "0.5rem",
     borderRadius: "8px",
@@ -101,17 +105,15 @@ const ExportDataConcept: React.FC = () => {
 
 const StatisticsPage: React.FC = () => {
   const [stats, setStats] = useState<DailyGradeCounter[]>([]);
-  const [timeRange, setTimeRange] = useState<"Weekly" | "Monthly" | "Yearly">(
-    "Monthly"
-  );
-  const [genderBreakdown, setGenderBreakdown] = useState<{
-    [grade: number]: { Male: number; Female: number };
-  }>({
-    7: { Male: 0, Female: 0 },
-    8: { Male: 0, Female: 0 },
-    9: { Male: 0, Female: 0 },
-    10: { Male: 0, Female: 0 },
-  });
+  const [allLogs, setAllLogs] = useState<AttendanceLog[]>([]);
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
+  const [lineChartTimeRange, setLineChartTimeRange] = useState<
+    "Last 7 Days" | "This Month" | "This Year"
+  >("This Month");
+  const [genderTimeRange, setGenderTimeRange] = useState<
+    "Today" | "This Week" | "This Month"
+  >("Today");
+
   const [topVisitors, setTopVisitors] = useState<
     { name: string; grade: number | string; visits: number }[]
   >([]);
@@ -126,14 +128,17 @@ const StatisticsPage: React.FC = () => {
   useEffect(() => {
     const fetchAllData = async () => {
       const dailyStatsData = await getAllDailyStats();
-      setStats(dailyStatsData);
-      const genderData = await getTodaysGenderBreakdown();
-      setGenderBreakdown(genderData);
+      const logsData = await getAllLogs();
+      const studentsData = await getAllStudents();
       const topVisitorsData = await getTopMonthlyVisitors();
-      setTopVisitors(topVisitorsData);
       const snapshotData = await getTodaysSnapshot();
-      setSnapshot(snapshotData);
       const recentVisitorsData = await getRecentVisitors();
+
+      setStats(dailyStatsData);
+      setAllLogs(logsData);
+      setAllStudents(studentsData);
+      setTopVisitors(topVisitorsData);
+      setSnapshot(snapshotData);
       setRecentVisitors(recentVisitorsData);
     };
     fetchAllData();
@@ -152,13 +157,13 @@ const StatisticsPage: React.FC = () => {
     Female: "var(--yellow)",
   };
 
-  // Memoized calculation for chart data
-  const processedChartData = useMemo(() => {
+  // Memoized calculation for line chart data
+  const processedLineChartData = useMemo(() => {
     const now = new Date();
-    if (timeRange === "Weekly") {
-      const lastWeek = new Date(new Date().setDate(now.getDate() - 7));
+    if (lineChartTimeRange === "Last 7 Days") {
+      const sevenDaysAgo = new Date(new Date().setDate(now.getDate() - 7));
       return stats
-        .filter((stat) => new Date(stat.date) >= lastWeek)
+        .filter((stat) => new Date(stat.date) >= sevenDaysAgo)
         .map((stat) => ({
           date: new Date(stat.date).toLocaleDateString("en-US", {
             month: "short",
@@ -167,7 +172,7 @@ const StatisticsPage: React.FC = () => {
           total: stat.grade7 + stat.grade8 + stat.grade9 + stat.grade10,
         }));
     }
-    if (timeRange === "Monthly") {
+    if (lineChartTimeRange === "This Month") {
       const currentMonth = now.getMonth();
       const currentYear = now.getFullYear();
       return stats
@@ -180,25 +185,22 @@ const StatisticsPage: React.FC = () => {
         })
         .map((stat) => ({
           date: new Date(stat.date).toLocaleDateString("en-US", {
-            month: "short",
             day: "numeric",
           }),
           total: stat.grade7 + stat.grade8 + stat.grade9 + stat.grade10,
         }));
     }
-    if (timeRange === "Yearly") {
+    if (lineChartTimeRange === "This Year") {
       const currentYear = now.getFullYear();
       const yearlyData = stats.filter(
         (stat) => new Date(stat.date).getFullYear() === currentYear
       );
-
       const monthlyTotals = Array.from({ length: 12 }, () => 0);
       yearlyData.forEach((stat) => {
         const month = new Date(stat.date).getMonth();
         monthlyTotals[month] +=
           stat.grade7 + stat.grade8 + stat.grade9 + stat.grade10;
       });
-
       const monthNames = [
         "Jan",
         "Feb",
@@ -219,7 +221,60 @@ const StatisticsPage: React.FC = () => {
       }));
     }
     return [];
-  }, [stats, timeRange]);
+  }, [stats, lineChartTimeRange]);
+
+  // Memoized calculation for gender breakdown pie charts
+  const processedGenderBreakdown = useMemo(() => {
+    const studentMap = new Map<string, Student>();
+    allStudents.forEach((student) => studentMap.set(student.lrn, student));
+
+    const breakdown: Record<number, { Male: number; Female: number }> = {
+      7: { Male: 0, Female: 0 },
+      8: { Male: 0, Female: 0 },
+      9: { Male: 0, Female: 0 },
+      10: { Male: 0, Female: 0 },
+    };
+
+    let logsToProcess: AttendanceLog[] = [];
+    const now = new Date();
+
+    if (genderTimeRange === "Today") {
+      const todayString = `${now.getFullYear()}-${String(
+        now.getMonth() + 1
+      ).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      logsToProcess = allLogs.filter((log) =>
+        log.timestamp.startsWith(todayString)
+      );
+    } else if (genderTimeRange === "This Week") {
+      const sevenDaysAgo = new Date(new Date().setDate(now.getDate() - 7));
+      logsToProcess = allLogs.filter(
+        (log) => new Date(log.timestamp) >= sevenDaysAgo
+      );
+    } else if (genderTimeRange === "This Month") {
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+      logsToProcess = allLogs.filter((log) => {
+        const logDate = new Date(log.timestamp);
+        return (
+          logDate.getMonth() === currentMonth &&
+          logDate.getFullYear() === currentYear
+        );
+      });
+    }
+
+    logsToProcess.forEach((log) => {
+      const student = studentMap.get(log.studentLrn);
+      if (student) {
+        const grade = parseInt(student.grade, 10);
+        if (breakdown[grade]) {
+          if (student.sex === "Male") breakdown[grade].Male++;
+          else if (student.sex === "Female") breakdown[grade].Female++;
+        }
+      }
+    });
+
+    return breakdown;
+  }, [allLogs, allStudents, genderTimeRange]);
 
   const timeRangeButtonStyle: React.CSSProperties = {
     background: "none",
@@ -235,7 +290,7 @@ const StatisticsPage: React.FC = () => {
     ...timeRangeButtonStyle,
     backgroundColor: "var(--green)",
     color: "white",
-    borderColor: "var(--green)",
+    border: "1px solid var(--green)",
   };
 
   return (
@@ -243,6 +298,7 @@ const StatisticsPage: React.FC = () => {
       style={{
         width: "100vw",
         height: "auto",
+        minHeight: "100vh",
         display: "flex",
         padding: "1.5rem",
         flexDirection: "row",
@@ -288,13 +344,13 @@ const StatisticsPage: React.FC = () => {
           {/* Chart Container */}
           <div style={{ flex: 1, minHeight: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={processedChartData}>
+              <LineChart data={processedLineChartData}>
                 <CartesianGrid
                   strokeDasharray="3 3"
                   stroke="var(--border-color)"
                 />
-                <XAxis dataKey="date" stroke="var(--dark-text)" />
-                <YAxis stroke="var(--dark-text)" />
+                <XAxis dataKey="date" />
+                <YAxis />
                 <Tooltip />
                 <Line
                   type="monotone"
@@ -317,19 +373,21 @@ const StatisticsPage: React.FC = () => {
               gap: "0.5rem",
             }}
           >
-            {(["Weekly", "Monthly", "Yearly"] as const).map((range) => (
-              <button
-                key={range}
-                onClick={() => setTimeRange(range)}
-                style={
-                  timeRange === range
-                    ? activeTimeRangeButtonStyle
-                    : timeRangeButtonStyle
-                }
-              >
-                {range}
-              </button>
-            ))}
+            {(["Last 7 Days", "This Month", "This Year"] as const).map(
+              (range) => (
+                <button
+                  key={range}
+                  onClick={() => setLineChartTimeRange(range)}
+                  style={
+                    lineChartTimeRange === range
+                      ? activeTimeRangeButtonStyle
+                      : timeRangeButtonStyle
+                  }
+                >
+                  {range}
+                </button>
+              )
+            )}
           </div>
         </div>
 
@@ -343,27 +401,38 @@ const StatisticsPage: React.FC = () => {
             }}
           >
             <ExportDataConcept />
-            <h5
+            <div
               style={{
-                fontFamily: "Poppins, sans-serif",
-                fontWeight: 700,
-                color: "var(--dark-text)",
-                marginBottom: "8px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "16px",
               }}
             >
-              Grade Level Breakdown
-            </h5>
-            <p
-              style={{
-                fontFamily: "Poppins, sans-serif",
-                fontSize: "0.9rem",
-                color: "var(--light-text)",
-                marginTop: "-4px",
-                marginBottom: "12px",
-              }}
-            >
-              Today's visitor count for each grade level, separated by gender.
-            </p>
+              <div>
+                <h5
+                  style={{
+                    fontFamily: "Poppins, sans-serif",
+                    fontWeight: 700,
+                    color: "var(--dark-text)",
+                    margin: 0,
+                  }}
+                >
+                  Grade Level Breakdown
+                </h5>
+                <p
+                  style={{
+                    fontFamily: "Poppins, sans-serif",
+                    fontSize: "0.9rem",
+                    color: "var(--light-text)",
+                    margin: "4px 0 0 0",
+                  }}
+                >
+                  An overview of visitors by gender.
+                </p>
+              </div>
+            </div>
+
             <div
               style={{
                 flex: 1,
@@ -378,13 +447,19 @@ const StatisticsPage: React.FC = () => {
             >
               {[7, 8, 9, 10].map((grade) => {
                 const gradeLabel = `Grade ${grade}`;
-                const data = [
-                  { name: "Male", value: genderBreakdown[grade]?.Male || 0 },
-                  {
-                    name: "Female",
-                    value: genderBreakdown[grade]?.Female || 0,
-                  },
-                ];
+                const maleCount = processedGenderBreakdown[grade]?.Male || 0;
+                const femaleCount =
+                  processedGenderBreakdown[grade]?.Female || 0;
+                const total = maleCount + femaleCount;
+
+                const data =
+                  total === 0
+                    ? [{ name: "No Data", value: 1 }]
+                    : [
+                        { name: "Male", value: maleCount },
+                        { name: "Female", value: femaleCount },
+                      ];
+
                 return (
                   <div
                     key={grade}
@@ -412,69 +487,99 @@ const StatisticsPage: React.FC = () => {
                         cy="50%"
                         innerRadius={30}
                         outerRadius={40}
-                        paddingAngle={2}
+                        paddingAngle={total > 0 ? 2 : 0}
                         dataKey="value"
                         nameKey="name"
                       >
                         {data.map((entry, i) => (
                           <Cell
                             key={`cell-${i}`}
-                            fill={genderColors[entry.name as "Male" | "Female"]}
+                            fill={
+                              total === 0
+                                ? "#E0E0E0"
+                                : genderColors[entry.name as "Male" | "Female"]
+                            }
                           />
                         ))}
                       </Pie>
-                      <Tooltip />
+                      {total > 0 && <Tooltip />}
                     </PieChart>
                   </div>
                 );
               })}
             </div>
-            {/* Color Legend for Pie Charts */}
+            {/* NEW FOOTER LAYOUT */}
             <div
               style={{
                 display: "flex",
-                justifyContent: "center",
-                gap: "1.5rem",
+                justifyContent: "space-between",
+                alignItems: "center",
                 marginTop: "1rem",
               }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                }}
-              >
+              {/* Color Labels on the left */}
+              <div style={{ display: "flex", gap: "1.5rem" }}>
                 <div
                   style={{
-                    width: "12px",
-                    height: "12px",
-                    borderRadius: "50%",
-                    backgroundColor: genderColors.Male,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
                   }}
-                />
-                <span style={{ color: "var(--dark-text)", fontSize: "0.9rem" }}>
-                  Male
-                </span>
+                >
+                  <div
+                    style={{
+                      width: "12px",
+                      height: "12px",
+                      borderRadius: "50%",
+                      backgroundColor: genderColors.Male,
+                    }}
+                  />
+                  <span
+                    style={{ color: "var(--dark-text)", fontSize: "0.9rem" }}
+                  >
+                    Male
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "12px",
+                      height: "12px",
+                      borderRadius: "50%",
+                      backgroundColor: genderColors.Female,
+                    }}
+                  />
+                  <span
+                    style={{ color: "var(--dark-text)", fontSize: "0.9rem" }}
+                  >
+                    Female
+                  </span>
+                </div>
               </div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                }}
-              >
-                <div
-                  style={{
-                    width: "12px",
-                    height: "12px",
-                    borderRadius: "50%",
-                    backgroundColor: genderColors.Female,
-                  }}
-                />
-                <span style={{ color: "var(--dark-text)", fontSize: "0.9rem" }}>
-                  Female
-                </span>
+
+              {/* View Buttons on the right */}
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                {(["Today", "This Week", "This Month"] as const).map(
+                  (range) => (
+                    <button
+                      key={range}
+                      onClick={() => setGenderTimeRange(range)}
+                      style={
+                        genderTimeRange === range
+                          ? activeTimeRangeButtonStyle
+                          : timeRangeButtonStyle
+                      }
+                    >
+                      {range}
+                    </button>
+                  )
+                )}
               </div>
             </div>
           </div>
