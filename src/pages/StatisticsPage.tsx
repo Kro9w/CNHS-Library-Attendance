@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import {
   LineChart,
   Line,
@@ -11,19 +11,22 @@ import {
   Cell,
   ResponsiveContainer,
 } from "recharts";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
+import { toPng } from "html-to-image";
 import {
   getAllDailyStats,
   getAllStudents,
   getAllLogs,
-} from "../services/studentService";
+} from "@/services/studentService";
 import {
   getTopMonthlyVisitors,
   getTodaysSnapshot,
   getRecentVisitors,
-} from "../services/attendanceService";
-import type { DailyGradeCounter } from "../types/dailyCounter";
-import type { AttendanceLog } from "../types/attendance";
-import type { Student } from "../types/student";
+} from "@/services/attendanceService";
+import type { DailyGradeCounter } from "@/types/dailyCounter";
+import type { AttendanceLog } from "@/types/attendance";
+import type { Student } from "@/types/student";
 
 // Define the type for the chart data
 type ChartData = {
@@ -31,20 +34,103 @@ type ChartData = {
   total: number;
 };
 
-// Component for the hoverable export functionality with fixed hover and new animation
-const ExportDataConcept: React.FC = () => {
+// --- EXCEL EXPORT FUNCTIONS ---
+const exportVisitorTrendToExcel = async (
+  data: ChartData[],
+  timeRange: string
+) => {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet(`Visitor Trend - ${timeRange}`);
+
+  sheet.columns = [
+    { header: "Date", key: "date", width: 15 },
+    { header: "Total Visitors", key: "total", width: 20 },
+  ];
+
+  data.forEach((row) => {
+    sheet.addRow(row);
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: "application/octet-stream" });
+  saveAs(
+    blob,
+    `library-visitor-trend-${timeRange.toLowerCase().replace(" ", "-")}.xlsx`
+  );
+};
+
+const exportGenderBreakdownToExcel = (
+  data: Record<number, { Male: number; Female: number }>,
+  timeRange: string
+) => {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet(`Gender Breakdown - ${timeRange}`);
+
+  sheet.columns = [
+    { header: "Grade Level", key: "grade", width: 15 },
+    { header: "Male", key: "male", width: 15 },
+    { header: "Female", key: "female", width: 15 },
+    { header: "Total", key: "total", width: 15 },
+  ];
+
+  Object.keys(data).forEach((grade) => {
+    const { Male, Female } = data[parseInt(grade, 10)];
+    sheet.addRow({
+      grade: `Grade ${grade}`,
+      male: Male,
+      female: Female,
+      total: Male + Female,
+    });
+  });
+
+  const bufferPromise = workbook.xlsx.writeBuffer();
+  bufferPromise.then((buffer) => {
+    const blob = new Blob([buffer], { type: "application/octet-stream" });
+    saveAs(
+      blob,
+      `gender-breakdown-${timeRange.toLowerCase().replace(" ", "-")}.xlsx`
+    );
+  });
+};
+
+const exportTopVisitorsToExcel = async (
+  data: { name: string; grade: number | string; visits: number }[]
+) => {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Top Monthly Visitors");
+
+  sheet.columns = [
+    { header: "Rank", key: "rank", width: 10 },
+    { header: "Name", key: "name", width: 30 },
+    { header: "Grade", key: "grade", width: 15 },
+    { header: "Visits", key: "visits", width: 15 },
+  ];
+
+  data.forEach((visitor, index) => {
+    sheet.addRow({
+      rank: index + 1,
+      ...visitor,
+    });
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: "application/octet-stream" });
+  saveAs(blob, "top-monthly-visitors.xlsx");
+};
+
+// Component for the hoverable export functionality
+const ExportDataConcept: React.FC<{
+  onExportExcel: () => void;
+  onExportPng: () => void;
+}> = ({ onExportExcel, onExportPng }) => {
   const [isHovered, setIsHovered] = useState(false);
 
-  // The invisible hoverable area. It's larger than the dot,
-  // preventing the popup from disappearing when the cursor moves.
   const hoverZoneStyle: React.CSSProperties = {
     position: "absolute",
     top: "0.5rem",
     right: "0.5rem",
     zIndex: 10,
-    // Add padding to create a buffer zone for the cursor
     padding: "15px",
-    // Use negative margin to ensure the zone doesn't affect layout
     margin: "-15px",
   };
 
@@ -61,20 +147,18 @@ const ExportDataConcept: React.FC = () => {
 
   const dialogStyle: React.CSSProperties = {
     position: "absolute",
-    top: "30px", // Positioned diagonally below the dot
+    top: "30px",
     right: "30px",
     backgroundColor: "white",
     padding: "0.5rem",
     borderRadius: "8px",
     boxShadow: "var(--shadow)",
     border: "1px solid var(--border-color)",
-    whiteSpace: "nowrap", // Prevents button text from wrapping
-    // Pop animation properties
-    transformOrigin: "top right", // Animation starts from the corner
-    transform: isHovered ? "scale(1)" : "scale(0.9)", // Start slightly scaled up for the pop
+    whiteSpace: "nowrap",
+    transformOrigin: "top right",
+    transform: isHovered ? "scale(1)" : "scale(0.9)",
     opacity: isHovered ? 1 : 0,
     pointerEvents: isHovered ? "auto" : "none",
-    // The cubic-bezier creates the "bounce" effect
     transition:
       "transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease-out",
   };
@@ -87,23 +171,38 @@ const ExportDataConcept: React.FC = () => {
     borderRadius: "5px",
     fontSize: "0.8rem",
     cursor: "pointer",
+    display: "block",
+    width: "100%",
   };
 
   return (
     <div
+      className="export-ignore"
       style={hoverZoneStyle}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       <div style={dotStyle} />
       <div style={dialogStyle}>
-        <button style={exportButtonStyle}>Export to Excel</button>
+        <button style={exportButtonStyle} onClick={onExportExcel}>
+          Export to Excel
+        </button>
+        <button
+          style={{ ...exportButtonStyle, marginTop: "0.5rem" }}
+          onClick={onExportPng}
+        >
+          Export as PNG
+        </button>
       </div>
     </div>
   );
 };
 
 const StatisticsPage: React.FC = () => {
+  const lineChartRef = useRef<HTMLDivElement>(null);
+  const genderBreakdownRef = useRef<HTMLDivElement>(null);
+  const topVisitorsRef = useRef<HTMLDivElement>(null);
+
   const [stats, setStats] = useState<DailyGradeCounter[]>([]);
   const [allLogs, setAllLogs] = useState<AttendanceLog[]>([]);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
@@ -144,20 +243,60 @@ const StatisticsPage: React.FC = () => {
     fetchAllData();
   }, []);
 
+  const handleExportToPng = async (
+    element: HTMLDivElement | null,
+    fileName: string
+  ) => {
+    if (element === null) {
+      console.error("Could not find element to export.");
+      return;
+    }
+
+    const filter = (node: HTMLElement) => {
+      return !node.classList?.contains("export-ignore");
+    };
+
+    const computedStyles = getComputedStyle(document.documentElement);
+
+    // This is the fix: We cast the style object to `any` to allow TypeScript
+    // to accept the CSS custom properties we are passing to the export library.
+    const styleOptions: any = {
+      "--green": computedStyles.getPropertyValue("--green").trim(),
+      "--yellow": computedStyles.getPropertyValue("--yellow").trim(),
+      "--light-gray": computedStyles.getPropertyValue("--light-gray").trim(),
+      "--dark-text": computedStyles.getPropertyValue("--dark-text").trim(),
+      "--light-text": computedStyles.getPropertyValue("--light-text").trim(),
+      "--border-color": computedStyles
+        .getPropertyValue("--border-color")
+        .trim(),
+      backgroundColor: computedStyles.getPropertyValue("--light-gray").trim(),
+    };
+
+    try {
+      const dataUrl = await toPng(element, {
+        cacheBust: true,
+        filter: filter,
+        style: styleOptions,
+      });
+      saveAs(dataUrl, `${fileName}.png`);
+    } catch (err) {
+      console.error("Failed to export to PNG", err);
+    }
+  };
+
   const cardStyle: React.CSSProperties = {
     backgroundColor: "var(--light-gray)",
     borderRadius: "1rem",
     padding: "1rem",
     margin: "0.5rem",
     boxShadow: "var(--shadow)",
-    position: "relative", // Needed for positioning the dot
+    position: "relative",
   };
   const genderColors = {
     Male: "var(--green)",
     Female: "var(--yellow)",
   };
 
-  // Memoized calculation for line chart data
   const processedLineChartData = useMemo(() => {
     const now = new Date();
     if (lineChartTimeRange === "Last 7 Days") {
@@ -223,18 +362,15 @@ const StatisticsPage: React.FC = () => {
     return [];
   }, [stats, lineChartTimeRange]);
 
-  // Memoized calculation for gender breakdown pie charts
   const processedGenderBreakdown = useMemo(() => {
     const studentMap = new Map<string, Student>();
     allStudents.forEach((student) => studentMap.set(student.lrn, student));
-
     const breakdown: Record<number, { Male: number; Female: number }> = {
       7: { Male: 0, Female: 0 },
       8: { Male: 0, Female: 0 },
       9: { Male: 0, Female: 0 },
       10: { Male: 0, Female: 0 },
     };
-
     let logsToProcess: AttendanceLog[] = [];
     const now = new Date();
 
@@ -285,7 +421,6 @@ const StatisticsPage: React.FC = () => {
     color: "var(--light-text)",
     fontSize: "0.8rem",
   };
-
   const activeTimeRangeButtonStyle: React.CSSProperties = {
     ...timeRangeButtonStyle,
     backgroundColor: "var(--green)",
@@ -305,10 +440,9 @@ const StatisticsPage: React.FC = () => {
         backgroundColor: "rgba(58, 140, 75, 0.1)",
       }}
     >
-      {/* Left Side */}
       <div style={{ width: "75%", display: "flex", flexDirection: "column" }}>
-        {/* A: Daily visitors trend */}
         <div
+          ref={lineChartRef}
           style={{
             ...cardStyle,
             flex: 1,
@@ -316,7 +450,17 @@ const StatisticsPage: React.FC = () => {
             flexDirection: "column",
           }}
         >
-          <ExportDataConcept />
+          <ExportDataConcept
+            onExportExcel={() =>
+              exportVisitorTrendToExcel(
+                processedLineChartData,
+                lineChartTimeRange
+              )
+            }
+            onExportPng={() =>
+              handleExportToPng(lineChartRef.current, "visitor-trend")
+            }
+          />
           <div style={{ textAlign: "center" }}>
             <h2
               style={{
@@ -341,7 +485,6 @@ const StatisticsPage: React.FC = () => {
               period.
             </p>
           </div>
-          {/* Chart Container */}
           <div style={{ flex: 1, minHeight: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={processedLineChartData}>
@@ -362,8 +505,8 @@ const StatisticsPage: React.FC = () => {
               </LineChart>
             </ResponsiveContainer>
           </div>
-          {/* Time Range Selector */}
           <div
+            className="export-ignore"
             style={{
               textAlign: "center",
               paddingTop: "10px",
@@ -393,6 +536,7 @@ const StatisticsPage: React.FC = () => {
 
         <div style={{ flex: 1, display: "flex" }}>
           <div
+            ref={genderBreakdownRef}
             style={{
               ...cardStyle,
               flex: 1,
@@ -400,7 +544,20 @@ const StatisticsPage: React.FC = () => {
               flexDirection: "column",
             }}
           >
-            <ExportDataConcept />
+            <ExportDataConcept
+              onExportExcel={() =>
+                exportGenderBreakdownToExcel(
+                  processedGenderBreakdown,
+                  genderTimeRange
+                )
+              }
+              onExportPng={() =>
+                handleExportToPng(
+                  genderBreakdownRef.current,
+                  "gender-breakdown"
+                )
+              }
+            />
             <div
               style={{
                 display: "flex",
@@ -451,7 +608,6 @@ const StatisticsPage: React.FC = () => {
                 const femaleCount =
                   processedGenderBreakdown[grade]?.Female || 0;
                 const total = maleCount + femaleCount;
-
                 const data =
                   total === 0
                     ? [{ name: "No Data", value: 1 }]
@@ -459,7 +615,6 @@ const StatisticsPage: React.FC = () => {
                         { name: "Male", value: maleCount },
                         { name: "Female", value: femaleCount },
                       ];
-
                 return (
                   <div
                     key={grade}
@@ -508,8 +663,8 @@ const StatisticsPage: React.FC = () => {
                 );
               })}
             </div>
-            {/* NEW FOOTER LAYOUT */}
             <div
+              className="export-ignore"
               style={{
                 display: "flex",
                 justifyContent: "space-between",
@@ -517,7 +672,6 @@ const StatisticsPage: React.FC = () => {
                 marginTop: "1rem",
               }}
             >
-              {/* Color Labels on the left */}
               <div style={{ display: "flex", gap: "1.5rem" }}>
                 <div
                   style={{
@@ -562,8 +716,6 @@ const StatisticsPage: React.FC = () => {
                   </span>
                 </div>
               </div>
-
-              {/* View Buttons on the right */}
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 {(["Today", "This Week", "This Month"] as const).map(
                   (range) => (
@@ -583,8 +735,8 @@ const StatisticsPage: React.FC = () => {
               </div>
             </div>
           </div>
-          {/* C: Top Monthly Visitors Leaderboard */}
           <div
+            ref={topVisitorsRef}
             style={{
               ...cardStyle,
               flex: 1,
@@ -592,7 +744,12 @@ const StatisticsPage: React.FC = () => {
               flexDirection: "column",
             }}
           >
-            <ExportDataConcept />
+            <ExportDataConcept
+              onExportExcel={() => exportTopVisitorsToExcel(topVisitors)}
+              onExportPng={() =>
+                handleExportToPng(topVisitorsRef.current, "top-visitors")
+              }
+            />
             <h5
               style={{
                 fontFamily: "Poppins, sans-serif",
@@ -617,7 +774,7 @@ const StatisticsPage: React.FC = () => {
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    padding: "0.5rem",
+                    padding: "1rem",
                     backgroundColor: "rgba(58, 140, 75, 0.1)",
                     borderRadius: "8px",
                     marginBottom: "0.5rem",
@@ -659,10 +816,7 @@ const StatisticsPage: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Right Side */}
       <div style={{ width: "25%", display: "flex", flexDirection: "column" }}>
-        {/* D: Today's Snapshot */}
         <div
           style={{
             ...cardStyle,
@@ -685,25 +839,13 @@ const StatisticsPage: React.FC = () => {
             Today's Snapshot
           </h4>
           <div style={{ textAlign: "center" }}>
-            <p
-              style={{
-                fontSize: "5.5rem",
-                fontWeight: "bold",
-                margin: 0,
-              }}
-            >
+            <p style={{ fontSize: "5.5rem", fontWeight: "bold", margin: 0 }}>
               {snapshot.totalVisitors}
             </p>
             <p style={{ margin: "0 0 1rem 0", fontSize: "1rem" }}>
               Visitors Today
             </p>
-            <p
-              style={{
-                fontSize: "1.2rem",
-                fontWeight: "bold",
-                margin: 0,
-              }}
-            >
+            <p style={{ fontSize: "1.2rem", fontWeight: "bold", margin: 0 }}>
               {snapshot.uniqueStudents}
             </p>
             <p style={{ margin: 0, fontSize: "0.9rem" }}>Unique Students</p>
