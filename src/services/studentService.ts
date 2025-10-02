@@ -5,9 +5,6 @@ import { db } from "./db";
 import type { DailyStats } from "./db";
 import type { AttendanceLog } from "../types/attendance";
 
-// --- Timezone Helper Function ---
-// This function creates a date string (YYYY-MM-DD) based on the user's local timezone,
-// not UTC. This is the key to making the day reset at local midnight.
 const getLocalDateString = () => {
   const date = new Date();
   const year = date.getFullYear();

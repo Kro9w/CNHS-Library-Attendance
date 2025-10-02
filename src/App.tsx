@@ -1,10 +1,16 @@
+import React, { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import HomeScreen from "./pages/HomeScreen";
 import AdminPage from "./pages/AdminPage";
-import NavBar from "./components/NavBar";
 import StatisticsPage from "./pages/StatisticsPage";
+import NavBar from "./components/NavBar";
+import { startGradeUpdateTimer } from "./services/gradeUpdateService";
 
-function App() {
+const App: React.FC = () => {
+  useEffect(() => {
+    startGradeUpdateTimer();
+  }, []);
+
   return (
     <Router>
       <NavBar />
@@ -15,6 +21,6 @@ function App() {
       </Routes>
     </Router>
   );
-}
+};
 
 export default App;
