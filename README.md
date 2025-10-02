@@ -15,6 +15,7 @@ Built with React, TypeScript, and Tauri, this application provides a fast, relia
   - [2. Daily Usage: Tracking Attendance](#2-daily-usage-tracking-attendance)
   - [3. Admin Functions](#3-admin-functions)
   - [4. Viewing Statistics](#4-viewing-statistics)
+  - [4.5. Exporting Statistics](#4.5-exporting-statistics)
 - [For Developers](#for-developers)
   - [Technology Stack](#technology-stack)
   - [Prerequisites](#prerequisites)
@@ -39,6 +40,7 @@ To install the application on your computer, follow these simple steps:
 1.  Navigate to the [**Releases Page**](https://github.com/kro9w/cnhs-library-attendance/releases) of this GitHub repository.
 2.  Under the latest release, find the "Assets" section.
 3.  Download the appropriate installer for your operating system:
+    _Coming Soon..._
     - For **Windows**: Download the `.msi` file (e.g., `library-attendance_0.0.0_x64_en-US.msi`).
     - For **macOS**: Download the `.dmg` file.
 4.  Once downloaded, double-click the installer and follow the on-screen instructions to complete the setup.
@@ -61,7 +63,7 @@ Create an Excel sheet with the following columns. The **column headers must exac
 - `Grade`
 - `Attendance`
 
-**Formatting Rules:**
+**Formatting Rules and Conventions:**
 
 - **LRN:** Must be a 12-digit number.
 - **Name Fields:** Should be in sentence case (e.g., "John", not "JOHN").
@@ -103,7 +105,7 @@ The **Admin** page provides tools for managing the system's data.
 - **View Attendance Log:** See a detailed, real-time log of all attendance records, including student names and the time they entered.
 - **Update Grade Levels:**
   - **Purpose:** This is an end-of-school-year function to promote students.
-  - **Action:** Clicking the **"Update Grade Levels"** button will increment the grade level of every student in the database (e.g., Grade 7 becomes Grade 8, Grade 8 becomes Grade 9, etc.).
+  - **Action:** This is an automatic process, to promote current students to the next grade level. It fires up upon hitting 12:00 AM of June 01. However there is a callable function that forces this in the rare instance the automation fails.
   - **Warning:** This action is irreversible. Use with caution. Students in Grade 10 will be archived or handled according to the system's logic.
 
 ### 4. Viewing Statistics
@@ -115,6 +117,18 @@ The **Statistics** page gives you insights into library usage.
   - **Today's Attendance:** A live count of students who have entered today.
   - **Weekly & Monthly Attendance:** Total attendance for the current week and month.
   - **Attendance by Grade Level:** See a breakdown of attendance for each grade level, helping you understand which groups use the library most.
+  - **Gender Breakdown per Grade Level** See a breakdown of male and female students for each grade level.
+  - **Top Monthly Library Visitors** See the top 3 patrons that frequently visit the library with their grade level and total number of visits for the month.
+  - **Recent Visitors** See the last 5 logged visitors to check for accuracy.
+
+### 4.5. Exporting Statistics
+
+In the **Statistics** page, you can observe yellow dots situted on the top right corner of the graph cards. When hovered, a dialog box will popup offering two options:
+
+- Option A: Export the data to a `.xlsx` file.
+- Option B: Export the graph to a '.png' file
+
+_Be sure that you are currently selecting the right view option to get the expert in the desired timeframe._
 
 ## For Developers
 
@@ -184,3 +198,15 @@ To build the final, production-ready executable for your platform:
 ├── Cargo.toml      # Rust project manifest
 └── tauri.conf.json # Tauri configuration file
 ```
+
+### Notes:
+
+- Data Integrity: The application uses the computer's system time for all attendance records. To ensure data accuracy, please make sure your computer's date and time are always correct.
+
+- Data Backup: All application data is stored locally on a single computer and is not backed up automatically. It is highly recommended to have a regular backup plan for the computer to prevent permanent data loss in case of hardware failure.
+
+- Student Import: The "Import Students" function will completely replace the existing student list with the data from the new .xlsx file. It does not merge lists.
+
+- Irreversible Actions: The "Update Grade Levels" function is a permanent action that cannot be undone. Please use this feature with caution and only at the end of a school year.
+
+- Single Machine Use: This is a standalone application. The attendance data is not shared or synced between different computers.
