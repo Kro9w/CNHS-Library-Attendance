@@ -73,7 +73,7 @@ Create an Excel sheet with the following columns. The **column headers must exac
 **Example Spreadsheet:**
 | LRN | First Name | Last Name | M.I. | Sex | Grade | Attendance |
 |--------------|------------|-----------|------|-----|-------|------------|
-| 123456789012 | John | Doe | A. | M | 7 | 0 |
+| 123456789012 | John | Seban | A. | M | 7 | 0 |
 | 210987654321 | Jane | Smith | | F | 8 | 0 |
 | 345678901234 | Peter | Cruz | B. | M | 7 | 0 |
 
@@ -128,7 +128,7 @@ In the **Statistics** page, you can observe yellow dots situted on the top right
 - Option A: Export the data to a `.xlsx` file.
 - Option B: Export the graph to a '.png' file
 
-_Be sure that you are currently selecting the right view option to get the expert in the desired timeframe._
+_Be sure that you are currently selecting the right view option to get the export in the desired timeframe._
 
 ## For Developers
 
