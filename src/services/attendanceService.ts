@@ -5,13 +5,13 @@ import { getAllStudents, getTodaysLogs, getAllLogs } from "./studentService";
 
 // This helper function is now imported from studentService,
 // but it's good practice to have it available if needed.
-const getLocalDateString = () => {
-  const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
+// const getLocalDateString = () => {
+//   const date = new Date();
+//   const year = date.getFullYear();
+//   const month = String(date.getMonth() + 1).padStart(2, '0');
+//   const day = String(date.getDate()).padStart(2, '0');
+//   return `${year}-${month}-${day}`;
+// };
 
 
 // Automatically log attendance by LRN

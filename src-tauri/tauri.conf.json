@@ -1,0 +1,37 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Library Attendance",
+  "version": "0.1.0",
+  "identifier": "com.solari.dev",
+  "build": {
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "npm run dev",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "CNHS-JHS Library Attendance System",
+        "width": 800,
+        "height": 600,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}
