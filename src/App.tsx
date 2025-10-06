@@ -5,6 +5,7 @@ import AdminPage from "./pages/AdminPage";
 import StatisticsPage from "./pages/StatisticsPage";
 import NavBar from "./components/NavBar";
 import { startGradeUpdateTimer } from "./services/gradeUpdateService";
+import "./services/consoleCommands";
 
 const App: React.FC = () => {
   useEffect(() => {
