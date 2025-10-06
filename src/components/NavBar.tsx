@@ -75,6 +75,17 @@ const NavBar: React.FC = () => {
           <button
             style={{
               ...btnStyle,
+              ...(hoveredButton === "attendance" ? btnHoverStyle : {}),
+            }}
+            onMouseEnter={() => setHoveredButton("attendance")}
+            onMouseLeave={() => setHoveredButton(null)}
+            onClick={() => navigate("/attendance")}
+          >
+            Attendance
+          </button>
+          <button
+            style={{
+              ...btnStyle,
               ...(hoveredButton === "statistics" ? btnHoverStyle : {}),
             }}
             onMouseEnter={() => setHoveredButton("statistics")}

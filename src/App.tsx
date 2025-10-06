@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import HomeScreen from "./pages/HomeScreen";
 import AdminPage from "./pages/AdminPage";
 import StatisticsPage from "./pages/StatisticsPage";
+import AttendancePage from "./pages/AttendancePage";
 import NavBar from "./components/NavBar";
 import { startGradeUpdateTimer } from "./services/gradeUpdateService";
 import "./services/consoleCommands";
@@ -19,6 +20,8 @@ const App: React.FC = () => {
         <Route path="/" element={<HomeScreen />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/statistics" element={<StatisticsPage />} />
+        <Route path="/attendance" element={<AttendancePage />} />{" "}
+        {/* Add the new route */}
       </Routes>
     </Router>
   );

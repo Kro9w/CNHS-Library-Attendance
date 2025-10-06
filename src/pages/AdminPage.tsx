@@ -402,7 +402,7 @@ const AdminPage: React.FC = () => {
               >
                 SOLARI
               </h4>
-              <p style={{ margin: 0 }}>Version 0.0.1-beta</p>
+              <p style={{ margin: 0 }}>Version 0.0.2-beta</p>
               <p style={{ margin: 0 }}>Developed by CSU BLIS - BATCH SOLARI</p>
               <p style={{ margin: "8px 0 0 0" }}>
                 © 2024. All Rights Reserved.

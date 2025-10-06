@@ -1,5 +1,5 @@
 import { db } from "./db";
-import type { AttendanceLog } from "../types/attendance";
+import type { AttendanceLog, AttendanceWithStudent } from "../types/attendance";
 import type { Student } from "../types/student";
 import { getAllStudents, getTodaysLogs, getAllLogs } from "./studentService";
 
@@ -193,3 +193,20 @@ export async function getRecentVisitors() {
   return recentVisitors;
 }
 
+export const getAllAttendanceWithStudentInfo = async (): Promise<AttendanceWithStudent[]> => {
+  const allLogs = await getAllLogs();
+  const allStudents = await getAllStudents();
+  const studentMap = new Map<string, Student>();
+  allStudents.forEach((student) => {
+    studentMap.set(student.lrn, student);
+  });
+
+  const attendanceWithStudentInfo: AttendanceWithStudent[] = allLogs.map(
+    (log) => ({
+      ...log,
+      student: studentMap.get(log.studentLrn),
+    })
+  );
+
+  return attendanceWithStudentInfo;
+};
