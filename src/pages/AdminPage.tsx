@@ -37,6 +37,17 @@ const AdminPage: React.FC = () => {
   const [activeActionMenu, setActiveActionMenu] = useState<string | null>(null);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalContent, setModalContent] = useState<
+    "alert" | "confirmDelete" | null
+  >(null);
+  const [alertMessage, setAlertMessage] = useState("");
+  const [studentToDelete, setStudentToDelete] = useState<{
+    lrn: string;
+    name: string;
+  } | null>(null);
+
   const importJsonRef = useRef<HTMLInputElement>(null);
   const importStudentExcelRef = useRef<HTMLInputElement>(null);
   const actionMenuRef = useRef<HTMLDivElement>(null);
@@ -67,10 +78,27 @@ const AdminPage: React.FC = () => {
     setStudents(allStudents);
   };
 
+  // Modal Functions
+  const showModal = (type: "alert" | "confirmDelete", message: string) => {
+    setModalContent(type);
+    setAlertMessage(message);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    // Reset states after modal closes for clean next use
+    setTimeout(() => {
+      setAlertMessage("");
+      setStudentToDelete(null);
+      setModalContent(null);
+    }, 300); // Delay to allow for closing animation
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!lrn || !firstName || !lastName) {
-      alert("Please fill out LRN, First Name, and Last Name.");
+      showModal("alert", "Please fill out LRN, First Name, and Last Name.");
       return;
     }
     const student: Student = {
@@ -85,10 +113,10 @@ const AdminPage: React.FC = () => {
     try {
       const success = await addStudent(student);
       if (!success) {
-        alert(`Error: A student with LRN ${lrn} already exists.`);
+        showModal("alert", `Error: A student with LRN ${lrn} already exists.`);
         return;
       }
-      alert(`Added ${firstName} ${lastName} successfully!`);
+      showModal("alert", `Added ${firstName} ${lastName} successfully!`);
       setLrn("");
       setFirstName("");
       setMiddleInitial("");
@@ -98,26 +126,34 @@ const AdminPage: React.FC = () => {
       fetchStudents();
     } catch (err) {
       console.error("Failed to add student:", err);
-      alert("Error adding student.");
+      showModal("alert", "Error adding student.");
     }
   };
 
-  const handleDelete = async (lrn: string, name: string) => {
-    if (
-      window.confirm(
-        `Are you sure you want to delete ${name}? This action cannot be undone.`
-      )
-    ) {
-      try {
-        await deleteStudent(lrn);
-        alert(`${name} has been deleted successfully.`);
-        fetchStudents();
-      } catch (err) {
-        console.error("Failed to delete student:", err);
-        alert("Error deleting student.");
-      }
-    }
+  const handleDelete = (lrn: string, name: string) => {
+    setStudentToDelete({ lrn, name });
+    showModal(
+      "confirmDelete",
+      `Are you sure you want to delete ${name}? This action cannot be undone.`
+    );
     setActiveActionMenu(null);
+  };
+
+  const confirmDelete = async () => {
+    if (!studentToDelete) return;
+    try {
+      await deleteStudent(studentToDelete.lrn);
+      showModal(
+        "alert",
+        `${studentToDelete.name} has been deleted successfully.`
+      );
+      fetchStudents();
+    } catch (err) {
+      console.error("Failed to delete student:", err);
+      showModal("alert", "Error deleting student.");
+    } finally {
+      closeModal();
+    }
   };
 
   const handleUpdateClick = (student: Student) => {
@@ -147,10 +183,10 @@ const AdminPage: React.FC = () => {
           count++;
         }
       }
-      alert(`Imported ${count} new students successfully!`);
+      showModal("alert", `Imported ${count} new students successfully!`);
       fetchStudents();
     } catch (err) {
-      alert("Invalid JSON file.");
+      showModal("alert", "Invalid JSON file.");
       console.error(err);
     }
     e.target.value = ""; // Reset file input
@@ -180,8 +216,10 @@ const AdminPage: React.FC = () => {
     await workbook.xlsx.load(await file.arrayBuffer());
     const sheet = workbook.worksheets[0];
     let importedCount = 0;
-    sheet.eachRow(async (row, rowNumber) => {
-      if (rowNumber === 1) return;
+
+    // Use a standard for-loop to handle async operations correctly
+    for (let i = 2; i <= sheet.rowCount; i++) {
+      const row = sheet.getRow(i);
       const [
         ,
         lrn,
@@ -192,22 +230,24 @@ const AdminPage: React.FC = () => {
         grade,
         attendance,
       ] = row.values as any[];
-      if (
-        lrn &&
-        (await addStudent({
-          lrn: String(lrn),
-          firstName: String(firstName || ""),
-          lastName: String(lastName || ""),
-          middleInitial: String(middleInitial || "N/A"),
-          sex: String(sex) as "Male" | "Female",
-          grade: String(grade) as "7" | "8" | "9" | "10",
+
+      if (lrn) {
+        const success = await addStudent({
+          lrn: String(lrn).trim(),
+          firstName: String(firstName || "").trim(),
+          lastName: String(lastName || "").trim(),
+          middleInitial: String(middleInitial || "N/A").trim(),
+          sex: String(sex).trim() as "Male" | "Female",
+          grade: String(grade).trim() as "7" | "8" | "9" | "10",
           attendance: Number(attendance) || 0,
-        }))
-      ) {
-        importedCount++;
+        });
+        if (success) {
+          importedCount++;
+        }
       }
-    });
-    alert(`Imported ${importedCount} new students!`);
+    }
+
+    showModal("alert", `Imported ${importedCount} new students!`);
     fetchStudents();
     e.target.value = ""; // Reset file input
   };
@@ -282,6 +322,27 @@ const AdminPage: React.FC = () => {
     color: "var(--dark-text)",
     border: "1px solid var(--border-color)",
   };
+  const modalOverlayStyle: React.CSSProperties = {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
+  };
+  const modalStyle: React.CSSProperties = {
+    backgroundColor: "white",
+    padding: "2rem",
+    borderRadius: "1rem",
+    width: "90%",
+    maxWidth: "500px",
+    boxShadow: "0 4px 15px rgba(0, 0, 0, 0.2)",
+    textAlign: "center",
+  };
 
   return (
     <div style={pageStyle}>
@@ -289,7 +350,10 @@ const AdminPage: React.FC = () => {
         <EditStudentModal
           student={editingStudent}
           onClose={() => setEditingStudent(null)}
-          onSave={fetchStudents}
+          onSave={(message) => {
+            fetchStudents();
+            showModal("alert", message);
+          }}
         />
       )}
       <div style={{ width: "35%", height: "100%" }}>
@@ -516,7 +580,7 @@ const AdminPage: React.FC = () => {
                         color: "var(--light-text)",
                       }}
                     >
-                      Search or select a grade level to view students.
+                      {`Currently managing ${students.length} students. Search or select a grade level to view records.`}
                     </td>
                   </tr>
                 ) : (
@@ -630,6 +694,52 @@ const AdminPage: React.FC = () => {
           accept=".xlsx"
         />
       </div>
+
+      {isModalOpen && (
+        <div style={modalOverlayStyle}>
+          <div style={modalStyle}>
+            <p>{alertMessage}</p>
+            {modalContent === "alert" && (
+              <button
+                style={{
+                  ...buttonStyle,
+                  marginBottom: 0,
+                  width: "auto",
+                  padding: "0.75rem 2rem",
+                }}
+                onClick={closeModal}
+              >
+                Close
+              </button>
+            )}
+            {modalContent === "confirmDelete" && (
+              <div style={{ display: "flex", gap: "1rem", marginTop: "2rem" }}>
+                <button
+                  style={{
+                    ...buttonStyle,
+                    backgroundColor: "var(--light-gray)",
+                    color: "var(--dark-text)",
+                    flex: 1,
+                  }}
+                  onClick={closeModal}
+                >
+                  Cancel
+                </button>
+                <button
+                  style={{
+                    ...buttonStyle,
+                    backgroundColor: "#dc3545",
+                    flex: 1,
+                  }}
+                  onClick={confirmDelete}
+                >
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -638,7 +748,7 @@ const AdminPage: React.FC = () => {
 const EditStudentModal: React.FC<{
   student: Student;
   onClose: () => void;
-  onSave: () => void;
+  onSave: (message: string) => void;
 }> = ({ student, onClose, onSave }) => {
   const [formData, setFormData] = useState(student);
 
@@ -653,12 +763,12 @@ const EditStudentModal: React.FC<{
     e.preventDefault();
     try {
       await updateStudent(formData);
-      alert("Student updated successfully!");
-      onSave();
+      onSave("Student updated successfully!");
       onClose();
     } catch (err) {
       console.error("Failed to update student:", err);
-      alert("Error updating student.");
+      onSave("Error updating student.");
+      onClose();
     }
   };
 

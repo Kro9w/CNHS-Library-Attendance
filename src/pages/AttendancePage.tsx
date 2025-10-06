@@ -205,6 +205,12 @@ const AttendancePage: React.FC = () => {
     return null;
   };
 
+  const isToday = (date: Date | null) => {
+    if (!date) return false;
+    const today = new Date();
+    return date.toDateString() === today.toDateString();
+  };
+
   // Styles
   const cardStyle: React.CSSProperties = {
     backgroundColor: "white",
@@ -280,12 +286,15 @@ const AttendancePage: React.FC = () => {
         style={{
           width: "25%",
           display: "flex",
+          height: "100%",
           flexDirection: "column",
           flex: 1,
         }}
       >
         {/* Calendar Card */}
-        <div style={{ ...cardStyle }}>
+        <div
+          style={{ ...cardStyle, flex: 2, height: "60%", overflow: "hidden" }}
+        >
           <Calendar
             onChange={handleDateChange}
             value={selectedDate}
@@ -299,17 +308,48 @@ const AttendancePage: React.FC = () => {
             ...cardStyle,
             flex: 1,
             justifyContent: "center",
+            alignItems: "center",
+            height: "40%",
           }}
         >
-          <button style={buttonStyle} onClick={handleExportSingleDay}>
-            Export Active Table to Excel
-          </button>
-          <button
-            style={{ ...buttonStyle, backgroundColor: "var(--light-text)" }}
-            onClick={() => showModal("dateRange")}
-          >
-            Export Selected Date Range
-          </button>
+          <div style={{ textAlign: "center" }}>
+            <p
+              style={{
+                fontSize: "4rem",
+                fontWeight: "bold",
+                margin: 0,
+                color: "var(--green)",
+              }}
+            >
+              {dailyLogs.length}
+            </p>
+            <p
+              style={{
+                margin: "0 0 1rem 0",
+                fontSize: "1rem",
+                color: "var(--light-text)",
+              }}
+            >
+              {isToday(selectedDate as Date)
+                ? "Visitors Today"
+                : "Visitors on this Day"}
+            </p>
+          </div>
+          <div>
+            <button style={buttonStyle} onClick={handleExportSingleDay}>
+              Export Active Table to Excel
+            </button>
+            <button
+              style={{
+                ...buttonStyle,
+                backgroundColor: "var(--light-text)",
+                marginBottom: 0,
+              }}
+              onClick={() => showModal("dateRange")}
+            >
+              Export Selected Date Range
+            </button>
+          </div>
         </div>
       </div>
 
@@ -318,7 +358,6 @@ const AttendancePage: React.FC = () => {
         style={{
           ...cardStyle,
           width: "75%",
-          height: "100%",
           overflow: "hidden",
           flex: 2.5,
         }}
@@ -342,12 +381,13 @@ const AttendancePage: React.FC = () => {
               })
             : "Attendance"}
         </h2>
-        {dailyLogs.length > 0 ? (
-          <div style={{ overflowY: "auto", flex: 1 }}>
+        <div style={{ overflowY: "auto", flex: 1, borderRadius: "1rem" }}>
+          {dailyLogs.length > 0 ? (
             <table
               style={{
                 width: "100%",
-                borderCollapse: "collapse",
+                borderCollapse: "separate",
+                borderSpacing: 0,
                 tableLayout: "fixed",
               }}
             >
@@ -361,10 +401,26 @@ const AttendancePage: React.FC = () => {
                 }}
               >
                 <tr>
-                  <th style={{ width: "15%", padding: "1rem" }}>Time</th>
+                  <th
+                    style={{
+                      width: "15%",
+                      padding: "1rem",
+                      borderTopLeftRadius: "1rem",
+                    }}
+                  >
+                    Time
+                  </th>
                   <th style={{ width: "45%", padding: "1rem" }}>Name</th>
                   <th style={{ width: "25%", padding: "1rem" }}>LRN</th>
-                  <th style={{ width: "15%", padding: "1rem" }}>Grade</th>
+                  <th
+                    style={{
+                      width: "15%",
+                      padding: "1rem",
+                      borderTopRightRadius: "1rem",
+                    }}
+                  >
+                    Grade
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -376,7 +432,7 @@ const AttendancePage: React.FC = () => {
                         index % 2 === 0 ? "white" : "var(--light-gray)",
                     }}
                   >
-                    <td style={{ padding: "1rem", textAlign: "center" }}>
+                    <td style={{ padding: "1rem" }}>
                       {new Date(log.timestamp).toLocaleTimeString()}
                     </td>
                     <td style={{ padding: "1rem" }}>
@@ -384,31 +440,27 @@ const AttendancePage: React.FC = () => {
                         log.student?.middleInitial || ""
                       } ${log.student?.lastName || ""}`.trim()}
                     </td>
-                    <td style={{ padding: "1rem", textAlign: "center" }}>
-                      {log.studentLrn}
-                    </td>
-                    <td style={{ padding: "1rem", textAlign: "center" }}>
-                      {log.student?.grade}
-                    </td>
+                    <td style={{ padding: "1rem" }}>{log.studentLrn}</td>
+                    <td style={{ padding: "1rem" }}>{log.student?.grade}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-        ) : (
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              height: "100%",
-              color: "var(--light-text)",
-              fontSize: "1.2rem",
-            }}
-          >
-            No attendance data for this day
-          </div>
-        )}
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                height: "100%",
+                color: "var(--light-text)",
+                fontSize: "1.2rem",
+              }}
+            >
+              No attendance data for this day
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Modal */}
