@@ -10,6 +10,16 @@ import { saveAs } from "file-saver";
 type ValuePiece = Date | null;
 type Value = ValuePiece | [ValuePiece, ValuePiece];
 
+const getStudentName = (log: AttendanceWithStudent): string => {
+  if (!log.student) {
+    return "Unknown Student";
+  }
+  const { firstName, middleInitial, lastName } = log.student;
+  const middle =
+    middleInitial && middleInitial !== "N/A" ? `${middleInitial} ` : "";
+  return `${firstName || ""} ${middle}${lastName || ""}`.trim();
+};
+
 // --- EXCEL EXPORT FUNCTION (SINGLE DAY) ---
 const exportTableToExcel = async (
   data: AttendanceWithStudent[],
@@ -30,9 +40,7 @@ const exportTableToExcel = async (
   data.forEach((log) => {
     sheet.addRow({
       time: new Date(log.timestamp).toLocaleTimeString(),
-      name: `${log.student?.firstName || ""} ${
-        log.student?.middleInitial || ""
-      } ${log.student?.lastName || ""}`.trim(),
+      name: getStudentName(log),
       lrn: log.studentLrn,
       grade: log.student?.grade,
     });
@@ -73,9 +81,7 @@ const exportDateRangeToExcel = async (
     sheet.addRow({
       date: new Date(log.timestamp).toLocaleDateString(),
       time: new Date(log.timestamp).toLocaleTimeString(),
-      name: `${log.student?.firstName || ""} ${
-        log.student?.middleInitial || ""
-      } ${log.student?.lastName || ""}`.trim(),
+      name: getStudentName(log),
       lrn: log.studentLrn,
       grade: log.student?.grade,
     });
@@ -435,11 +441,7 @@ const AttendancePage: React.FC = () => {
                     <td style={{ padding: "1rem" }}>
                       {new Date(log.timestamp).toLocaleTimeString()}
                     </td>
-                    <td style={{ padding: "1rem" }}>
-                      {`${log.student?.firstName || ""} ${
-                        log.student?.middleInitial || ""
-                      } ${log.student?.lastName || ""}`.trim()}
-                    </td>
+                    <td style={{ padding: "1rem" }}>{getStudentName(log)}</td>
                     <td style={{ padding: "1rem" }}>{log.studentLrn}</td>
                     <td style={{ padding: "1rem" }}>{log.student?.grade}</td>
                   </tr>

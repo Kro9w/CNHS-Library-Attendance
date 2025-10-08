@@ -18,6 +18,14 @@ import "@fontsource/nunito-sans/800.css";
 import "@fontsource/poppins/400.css";
 import "@fontsource/poppins/600.css";
 
+// Helper function to format student name
+const getStudentName = (student: Student): string => {
+  const { firstName, middleInitial, lastName } = student;
+  const middle =
+    middleInitial && middleInitial !== "N/A" ? `${middleInitial}` : "";
+  return `${lastName}, ${firstName} ${middle}`.trim();
+};
+
 const AdminPage: React.FC = () => {
   // State for the "Add Student" form
   const [lrn, setLrn] = useState("");
@@ -564,8 +572,8 @@ const AdminPage: React.FC = () => {
                   <th>LRN</th>
                   <th>Name</th>
                   <th>Sex</th>
-                  <th>Grade</th>
-                  <th>Attendance</th>
+                  <th style={{ textAlign: "center" }}>Grade</th>
+                  <th style={{ textAlign: "center" }}>Attendance</th>
                   <th style={{ width: "60px" }}>Actions</th>
                 </tr>
               </thead>
@@ -591,10 +599,12 @@ const AdminPage: React.FC = () => {
                       onMouseLeave={() => setHoveredRowLrn(null)}
                     >
                       <td>{s.lrn}</td>
-                      <td>{`${s.lastName}, ${s.firstName} ${s.middleInitial}`}</td>
+                      <td>{getStudentName(s)}</td>
                       <td>{s.sex}</td>
-                      <td>{s.grade}</td>
-                      <td>{s.attendance || 0}</td>
+                      <td style={{ textAlign: "center" }}>{s.grade}</td>
+                      <td style={{ textAlign: "center" }}>
+                        {s.attendance || 0}
+                      </td>
                       <td style={{ textAlign: "center", position: "relative" }}>
                         <div
                           style={{
@@ -713,13 +723,21 @@ const AdminPage: React.FC = () => {
               </button>
             )}
             {modalContent === "confirmDelete" && (
-              <div style={{ display: "flex", gap: "1rem", marginTop: "2rem" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "1rem",
+                  marginTop: "2rem",
+                  justifyContent: "center",
+                }}
+              >
                 <button
                   style={{
                     ...buttonStyle,
                     backgroundColor: "var(--light-gray)",
                     color: "var(--dark-text)",
                     flex: 1,
+                    maxWidth: "150px",
                   }}
                   onClick={closeModal}
                 >
@@ -730,6 +748,7 @@ const AdminPage: React.FC = () => {
                     ...buttonStyle,
                     backgroundColor: "#dc3545",
                     flex: 1,
+                    maxWidth: "150px",
                   }}
                   onClick={confirmDelete}
                 >
@@ -808,6 +827,7 @@ const EditStudentModal: React.FC<{
     fontSize: "1rem",
     fontWeight: 600,
     cursor: "pointer",
+    width: "100%",
   };
 
   return (

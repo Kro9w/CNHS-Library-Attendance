@@ -97,6 +97,13 @@ This is the main screen you will use for daily operations.
   - If the LRN is not found, an **error message** will be displayed.
   - The input field will automatically clear after each entry, ready for the next student.
 
+### 2.5 Attendance Page
+
+Here you can find the attendance list of students, arranged and logged chronologically. On the upper right card is a calendar to easily select a date to view attendance for the selected date. Dates with no background contain no attendance data while those with a faded green do. Attendance data can also be exported via excel, there are two options to export:
+
+- **Export Selected Day to Excel:** Clicking will export attendance data of the day you are currently viewing.
+- **Exoirt Custom Date Ragne:** This will open a dialog window which you can select the date range you wish to export.
+
 ### 3. Admin Functions
 
 The **Admin** page provides tools for managing the system's data.
