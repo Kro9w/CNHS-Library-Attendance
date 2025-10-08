@@ -3,7 +3,7 @@ import type { Student } from "../types/student";
 import type { AttendanceLog } from "../types/attendance";
 
 export interface DailyStats {
-  date: string;  // e.g., "2025-09-02"
+  date: string;  // "2025-09-02"
   grade7: number;
   grade8: number;
   grade9: number;

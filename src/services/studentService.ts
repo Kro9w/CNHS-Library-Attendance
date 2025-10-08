@@ -13,8 +13,7 @@ const getLocalDateString = () => {
   return `${year}-${month}-${day}`;
 };
 
-
-// Open or create IndexedDB
+// Innitializ
 const DB_NAME = "LibraryDB";
 const DB_VERSION = 1;
 const STORE_NAME = "students";
@@ -39,7 +38,6 @@ export async function logAttendance(student: Student) {
   const db = await getDB();
   const tx = db.transaction(["attendanceLogs", "students"], "readwrite");
   
-  // The timestamp should be a full ISO string to preserve the exact time
   const now = new Date();
   const timestamp = now.toISOString();
   console.log(`Logging attendance for LRN: ${student.lrn}, Grade: ${student.grade}, Timestamp: ${timestamp}`);
@@ -52,10 +50,8 @@ export async function logAttendance(student: Student) {
     sex: student.sex,
   };
 
-  // Add log entry
   tx.objectStore("attendanceLogs").add(log);
 
-  // Update student attendance field
   const studentStore = tx.objectStore("students");
   const existing = await studentStore.get(student.lrn);
   if (existing) {
@@ -71,9 +67,8 @@ export async function getTodaysLogs(): Promise<AttendanceLog[]> {
   const db = await getDB();
   const store = db.transaction("attendanceLogs").objectStore("attendanceLogs");
   const allLogs = await store.getAll();
-  const today = getLocalDateString(); // Use the local date string
+  const today = getLocalDateString();
   console.log("Today's logs for date:", today, allLogs);
-  // Filter by comparing the start of the ISO timestamp string with the local date string
   return allLogs.filter(log => new Date(log.timestamp).toLocaleDateString('en-CA') === today);
 }
 
@@ -84,7 +79,6 @@ export async function getAllLogs(): Promise<AttendanceLog[]> {
   return db.getAll("attendanceLogs");
 }
 
-// Optional: clear all logs (useful for testing)
 export async function clearAllLogs(): Promise<void> {
   const db = await getDB();
   const store = db.transaction("attendanceLogs", "readwrite").objectStore("attendanceLogs");
@@ -96,7 +90,6 @@ export async function addStudent(student: Student): Promise<boolean> {
   const db = await getDB();
   const existing = await db.get(STORE_NAME, student.lrn);
   if (existing) {
-    // Return false to indicate student already exists
     return false;
   }
 
@@ -155,7 +148,7 @@ export async function getTodaysCounters(): Promise<DailyGradeCounter> {
 
 // Increment a grade (Note: This function seems unused, but corrected for consistency)
 export async function incrementGradeCounter(grade: "7"|"8"|"9"|"10") {
-  const today = getLocalDateString(); // Use the local date string
+  const today = getLocalDateString(); 
   const table = db.table<DailyGradeCounter>("dailyCounters");
   let counters = await table.get(today);
   if (!counters) {
@@ -168,7 +161,7 @@ export async function incrementGradeCounter(grade: "7"|"8"|"9"|"10") {
 
 // Get today's stats (or create if not exist)
 export async function getTodaysStats(): Promise<DailyStats> {
-  const today = getLocalDateString(); // Use the local date string
+  const today = getLocalDateString();
   let stats = await db.dailyStats.get(today);
   if (!stats) {
     stats = { date: today, grade7: 0, grade8: 0, grade9: 0, grade10: 0 };
@@ -202,7 +195,7 @@ export async function incrementDailyStats(grade: string) {
 
 // Log an increment for the grade on today’s date
 export const logDailyStat = async (grade: "7" | "8" | "9" | "10") => {
-  const today = getLocalDateString(); // Use the local date string
+  const today = getLocalDateString();
   const existing = await db.dailyStats.get(today);
 
   if (existing) {
@@ -232,7 +225,6 @@ export const subscribeToDailyStats = (callback: (stats: DailyStats[]) => void) =
     callback(stats);
   };
 
-  // Attach hooks properly
   db.dailyStats.hook("creating", listener as any);
   db.dailyStats.hook("updating", listener as any);
 

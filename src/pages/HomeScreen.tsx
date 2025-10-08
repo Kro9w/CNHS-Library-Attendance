@@ -317,7 +317,7 @@ const HomeScreen: React.FC = () => {
         >
           <input
             type="text"
-            placeholder="Search by LRN or Name..." // Updated placeholder
+            placeholder="Search by LRN or Name..."
             value={scannedLRN}
             onChange={handleInputChange}
             onKeyDown={(e) => e.key === "Enter" && handleScan()}

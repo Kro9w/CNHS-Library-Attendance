@@ -1,14 +1,13 @@
 import { db } from "../services/db";
 
 export interface DailyGradeCounter {
-  date: string;      // e.g., "2025-09-01"
+  date: string;
   grade7: number;
   grade8: number;
   grade9: number;
   grade10: number;
 }
 
-// dailyCounters.ts (in studentService)
 export async function resetDailyCounters() {
   const today = new Date().toISOString().split("T")[0];
   const table = db.table<DailyGradeCounter>("dailyCounters");
@@ -21,6 +20,6 @@ export async function resetDailyCounters() {
     grade10: 0,
   };
 
-  await table.put(counters); // overwrite or create today's record
+  await table.put(counters);
   return counters;
 }

@@ -21,7 +21,6 @@ const App: React.FC = () => {
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/statistics" element={<StatisticsPage />} />
         <Route path="/attendance" element={<AttendancePage />} />{" "}
-        {/* Add the new route */}
       </Routes>
     </Router>
   );

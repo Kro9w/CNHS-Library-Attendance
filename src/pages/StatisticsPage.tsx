@@ -118,7 +118,7 @@ const exportTopVisitorsToExcel = async (
   saveAs(blob, "top-monthly-visitors.xlsx");
 };
 
-// Component for the hoverable export functionality
+// Hoverable export functionality
 const ExportDataConcept: React.FC<{
   onExportExcel: () => void;
   onExportPng: () => void;
@@ -258,8 +258,6 @@ const StatisticsPage: React.FC = () => {
 
     const computedStyles = getComputedStyle(document.documentElement);
 
-    // This is the fix: We cast the style object to `any` to allow TypeScript
-    // to accept the CSS custom properties we are passing to the export library.
     const styleOptions: any = {
       "--green": computedStyles.getPropertyValue("--green").trim(),
       "--yellow": computedStyles.getPropertyValue("--yellow").trim(),

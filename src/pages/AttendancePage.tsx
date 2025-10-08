@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useMemo } from "react";
 import Calendar from "react-calendar";
-import "react-calendar/dist/Calendar.css"; // Import calendar styles
+import "react-calendar/dist/Calendar.css";
 import { getAllAttendanceWithStudentInfo } from "../services/attendanceService";
 import type { AttendanceWithStudent } from "../types/attendance";
-import "./AttendancePage.css"; // Import custom calendar styles
+import "./AttendancePage.css";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 
