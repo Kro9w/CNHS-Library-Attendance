@@ -78,7 +78,7 @@ Before you can track attendance, you must load the student list into the applica
 
 #### **Step 1: Prepare Your Student Excel File**
 
-Create an Excel sheet with the following columns. The **column headers must exactly match** the names below:
+Create an Excel sheet with the following columns. The column headers must **exactly** match the names below:
 
 - `LRN`
 - `First Name`
@@ -176,7 +176,7 @@ This section provides instructions for developers who want to contribute to the 
 - **Frontend:** [React](https://react.dev/), [TypeScript](https://www.typescriptlang.org/)
 - **Build Tool:** [Vite](https://vitejs.dev/)
 - **Desktop Framework:** [Tauri](https://tauri.app/)
-- **Styling:** CSS
+- **Styling:** [Bootstrap](https://getbootstrap.com/), [Tailwind](https://tailwindcss.com/), [Shadcn](https://shadcn.io/)
 - **Client-Side Database:** [Dexie.js](https://dexie.org/) (a wrapper for IndexedDB)
 - **Routing:** [React Router](https://reactrouter.com/)
 
@@ -218,6 +218,7 @@ To build the final, production-ready executable for your platform:
 
 ## Project Structure
 
+```
 ├── dist/ # Production build output from Vite
 ├── public/ # Static assets
 ├── src/ # React frontend source code
@@ -233,6 +234,7 @@ To build the final, production-ready executable for your platform:
 ├── target/ # Rust build output (contains the final executable)
 ├── Cargo.toml # Rust project manifest
 └── tauri.conf.json # Tauri configuration file
+```
 
 ### Notes:
 
